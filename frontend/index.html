@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant 2.0</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 750px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f3f6fb;
+            color: #1e293b;
+        }
+
+        main {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            color: #1d4ed8;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: white;
+            color: #1e293b;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 12px 18px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .document-section {
+            margin: 20px 0;
+        }
+
+        .document-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        #documentStatus {
+            margin-top: 0;
+        }
+
+        .answer-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 22px;
+        }
+
+        .answer-heading h2 {
+            margin: 0;
+        }
+
+        .clear-button {
+            background: #64748b;
+        }
+
+        #answer {
+            line-height: 1.7;
+            overflow-wrap: anywhere;
+            margin-top: 18px;
+        }
+
+        #answer h3 {
+            margin-top: 24px;
+            color: #1d4ed8;
+        }
+
+        #answer li {
+            margin-bottom: 6px;
+        }
+
+        #answer table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+        }
+
+        #answer th,
+        #answer td {
+            border: 1px solid #dbe3ee;
+            padding: 8px;
+            text-align: left;
+        }
+
+        #answer th {
+            background: #f3f6fb;
+        }
+
+        #answer pre {
+            padding: 12px;
+            background: #f3f6fb;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        #answer code {
+            background: #f3f6fb;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        #answer pre code {
+            padding: 0;
+        }
+
+        /* Student Dashboard */
+        .dashboard {
+            margin-top: 24px;
+            padding: 20px;
+            background: #eff6ff;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+        }
+
+        .dashboard h2 {
+            margin-top: 0;
+            color: #1d4ed8;
+        }
+
+        .dashboard-welcome {
+            margin-bottom: 18px;
+            line-height: 1.6;
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .dashboard-card {
+            padding: 16px;
+            background: white;
+            border: 1px solid #dbeafe;
+            border-radius: 8px;
+        }
+
+        .dashboard-label {
+            margin: 0 0 8px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .dashboard-number {
+            margin: 0;
+            color: #1d4ed8;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        /* Question History */
+        .history-section {
+            margin-top: 30px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 18px;
+        }
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .history-row {
+            display: flex;
+            align-items: stretch;
+            gap: 8px;
+        }
+
+        .history-item {
+            flex: 1;
+            min-width: 0;
+            text-align: left;
+            background: #f1f5f9;
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+            overflow-wrap: anywhere;
+        }
+
+        .history-item:hover {
+            background: #e2e8f0;
+        }
+
+        .delete-button {
+            background: #dc2626;
+            flex-shrink: 0;
+        }
+
+        .delete-button:hover {
+            background: #b91c1c;
+        }
+
+        .history-empty {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .history-status {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        @media (max-width: 500px) {
+            body {
+                margin: 10px auto;
+                padding: 12px;
+            }
+
+            main {
+                padding: 18px;
+            }
+
+            .answer-heading {
+                align-items: flex-start;
+                flex-wrap: wrap;
+            }
+        }
+
+        @media (max-width: 400px) {
+            .dashboard {
+                padding: 14px;
+            }
+
+            .dashboard-stats {
+                grid-template-columns: 1fr;
+            }
+
+            .history-row {
+                flex-wrap: wrap;
+            }
+
+            .history-row .history-item {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main>
+        <h1>AI Study Assistant 2.0</h1>
+        <p>Ask a question and get help from your AI Study Assistant.</p>
+
+        <!-- Study Document Selector -->
+        <section class="document-section">
+            <label for="documentSelect">📄 Select a Study Document</label>
+
+            <select id="documentSelect">
+                <option value="">General question (no document)</option>
+            </select>
+
+            <p
+                id="documentStatus"
+                class="history-status"
+                aria-live="polite"
+            >
+                Loading study documents...
+            </p>
+        </section>
+
+        <!-- Ask a Question -->
+        <form id="questionForm">
+            <input
+                type="text"
+                id="question"
+                placeholder="Enter your question"
+                aria-label="Enter your question"
+                required
+            >
+
+            <button type="submit" id="askButton">Ask</button>
+        </form>
+
+        <!-- Answer -->
+        <div class="answer-heading">
+            <h2>Answer</h2>
+
+            <button
+                type="button"
+                id="clearButton"
+                class="clear-button"
+            >
+                Clear Answer
+            </button>
+        </div>
+
+        <div id="answer" aria-live="polite">
+            Your answer will appear here.
+        </div>
+
+        <!-- Student Dashboard -->
+        <section class="dashboard">
+            <h2>📚 Student Dashboard</h2>
+
+            <p class="dashboard-welcome">
+                Welcome to your AI Study Assistant!
+                Keep learning, ask questions, and review your saved answers.
+            </p>
+
+            <div class="dashboard-stats">
+                <div class="dashboard-card">
+                    <p class="dashboard-label">Total Saved Questions</p>
+                    <p
+                        class="dashboard-number"
+                        id="totalQuestions"
+                        aria-live="polite"
+                    >0</p>
+                </div>
+
+                <div class="dashboard-card">
+                    <p class="dashboard-label">Questions Displayed</p>
+                    <p
+                        class="dashboard-number"
+                        id="displayedQuestions"
+                        aria-live="polite"
+                    >0</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Question History -->
+        <section class="history-section">
+            <h2>Question History</h2>
+            <p>Click a previous question to view its answer again.</p>
+
+            <button type="button" id="refreshHistoryButton">
+                Refresh History
+            </button>
+
+            <p
+                id="historyStatus"
+                class="history-status"
+                aria-live="polite"
+            >
+                Loading saved history...
+            </p>
+
+            <div id="historyList" class="history-list">
+                <p class="history-empty">Loading saved questions...</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const API_URL = "http://127.0.0.1:5000";
+        const MAX_HISTORY = 10;
+
+        const form = document.getElementById("questionForm");
+        const questionInput = document.getElementById("question");
+        const documentSelect = document.getElementById("documentSelect");
+        const documentStatus = document.getElementById("documentStatus");
+        const answer = document.getElementById("answer");
+        const askButton = document.getElementById("askButton");
+        const clearButton = document.getElementById("clearButton");
+        const historyList = document.getElementById("historyList");
+        const historyStatus = document.getElementById("historyStatus");
+
+        const refreshHistoryButton =
+            document.getElementById("refreshHistoryButton");
+
+        const totalQuestionsElement =
+            document.getElementById("totalQuestions");
+
+        const displayedQuestionsElement =
+            document.getElementById("displayedQuestions");
+
+        let historyItems = [];
+
+        // Safely display an AI answer with Markdown formatting.
+        function displayAnswer(answerText) {
+            if (
+                typeof marked === "undefined" ||
+                typeof DOMPurify === "undefined"
+            ) {
+                answer.textContent = answerText;
+                return;
+            }
+
+            const cleanedAnswer = answerText.replace(/&nbsp;/g, " ");
+
+            answer.innerHTML = DOMPurify.sanitize(
+                marked.parse(cleanedAnswer)
+            );
+        }
+
+        // Load available study documents from the Flask backend.
+        async function loadDocuments() {
+            documentStatus.textContent = "Loading study documents...";
+            documentSelect.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/documents`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "Could not load study documents."
+                    );
+                }
+
+                if (!Array.isArray(data.documents)) {
+                    throw new Error(
+                        "The documents response has an unexpected format."
+                    );
+                }
+
+                // Keep the general-question option.
+                documentSelect.replaceChildren();
+
+                const generalOption = document.createElement("option");
+                generalOption.value = "";
+                generalOption.textContent = "General question (no document)";
+                documentSelect.appendChild(generalOption);
+
+                // Add each available document.
+                data.documents.forEach(function (documentName) {
+                    if (typeof documentName !== "string") {
+                        return;
+                    }
+
+                    const option = document.createElement("option");
+                    option.value = documentName;
+                    option.textContent = documentName;
+                    documentSelect.appendChild(option);
+                });
+
+                if (data.documents.length > 0) {
+                    documentStatus.textContent =
+                        `${data.documents.length} study document(s) available. Select one before asking a question.`;
+                } else {
+                    documentStatus.textContent =
+                        "No study documents found. Add .txt files to the study_material folder.";
+                }
+
+            } catch (error) {
+                console.error("Document loading error:", error);
+
+                documentStatus.textContent =
+                    "Could not load documents. Check that the backend is running and try refreshing.";
+
+            } finally {
+                documentSelect.disabled = false;
+            }
+        }
+
+        // Update the number of questions displayed in history.
+        function updateDisplayedCount() {
+            displayedQuestionsElement.textContent = historyItems.length;
+        }
+
+        // Display saved questions and their Delete buttons.
+        function renderHistory() {
+            historyList.replaceChildren();
+            updateDisplayedCount();
+
+            if (historyItems.length === 0) {
+                const message = document.createElement("p");
+                message.className = "history-empty";
+                message.textContent = "No saved questions yet.";
+                historyList.appendChild(message);
+                return;
+            }
+
+            historyItems.forEach(function (item) {
+                const row = document.createElement("div");
+                row.className = "history-row";
+
+                const questionButton = document.createElement("button");
+                questionButton.type = "button";
+                questionButton.className = "history-item";
+                questionButton.textContent = item.question;
+
+                questionButton.addEventListener("click", function () {
+                    questionInput.value = item.question;
+                    displayAnswer(item.answer);
+                });
+
+                const deleteButton = document.createElement("button");
+                deleteButton.type = "button";
+                deleteButton.className = "delete-button";
+                deleteButton.textContent = "Delete";
+                deleteButton.setAttribute(
+                    "aria-label",
+                    "Delete question: " + item.question
+                );
+
+                deleteButton.addEventListener("click", async function () {
+                    const confirmed = window.confirm(
+                        "Are you sure you want to permanently delete this saved question?"
+                    );
+
+                    if (!confirmed) {
+                        return;
+                    }
+
+                    deleteButton.disabled = true;
+                    deleteButton.textContent = "Deleting...";
+
+                    try {
+                        const response = await fetch(
+                            `${API_URL}/history/${encodeURIComponent(item.id)}`,
+                            { method: "DELETE" }
+                        );
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(
+                                data.error || "Could not delete the question."
+                            );
+                        }
+
+                        await loadHistory();
+
+                        historyStatus.textContent =
+                            "Question deleted successfully.";
+
+                    } catch (error) {
+                        console.error("Delete history error:", error);
+
+                        window.alert(
+                            "Could not delete this question. " + error.message
+                        );
+
+                        deleteButton.disabled = false;
+                        deleteButton.textContent = "Delete";
+                    }
+                });
+
+                row.appendChild(questionButton);
+                row.appendChild(deleteButton);
+                historyList.appendChild(row);
+            });
+        }
+
+        // Load saved questions from the Flask backend.
+        async function loadHistory() {
+            historyStatus.textContent = "Loading saved history...";
+            refreshHistoryButton.disabled = true;
+
+            try {
+                const response = await fetch(`${API_URL}/history`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "Could not retrieve saved history."
+                    );
+                }
+
+                if (!Array.isArray(data.history)) {
+                    throw new Error(
+                        "The history response has an unexpected format."
+                    );
+                }
+
+                const validHistory = data.history.filter(function (item) {
+                    return (
+                        item.id !== undefined &&
+                        item.id !== null &&
+                        typeof item.question === "string" &&
+                        typeof item.answer === "string"
+                    );
+                });
+
+                totalQuestionsElement.textContent = validHistory.length;
+
+                historyItems = validHistory
+                    .map(function (item) {
+                        return {
+                            id: item.id,
+                            question: item.question,
+                            answer: item.answer
+                        };
+                    })
+                    .slice(0, MAX_HISTORY);
+
+                renderHistory();
+
+                historyStatus.textContent =
+                    `Showing ${historyItems.length} saved question(s).`;
+
+            } catch (error) {
+                console.error("History loading error:", error);
+
+                historyStatus.textContent =
+                    "Could not load saved history. Check your backend and try refreshing.";
+
+                historyList.replaceChildren();
+
+                const message = document.createElement("p");
+                message.className = "history-empty";
+                message.textContent = error.message;
+                historyList.appendChild(message);
+
+                totalQuestionsElement.textContent = "—";
+                displayedQuestionsElement.textContent = "—";
+
+            } finally {
+                refreshHistoryButton.disabled = false;
+            }
+        }
+
+        // Send the question and selected document to the backend.
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const question = questionInput.value.trim();
+            const selectedDocument = documentSelect.value;
+
+            if (!question) {
+                answer.textContent = "Please enter a question.";
+                return;
+            }
+
+            if (
+                typeof marked === "undefined" ||
+                typeof DOMPurify === "undefined"
+            ) {
+                answer.textContent =
+                    "The formatting libraries could not load. Check your internet connection and refresh the page.";
+                return;
+            }
+
+            askButton.disabled = true;
+            answer.textContent = "AI is preparing your answer...";
+
+            try {
+                const response = await fetch(`${API_URL}/ask`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        document: selectedDocument || null
+                    })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || "The request failed."
+                    );
+                }
+
+                if (typeof data.answer !== "string") {
+                    throw new Error(
+                        "The AI returned an invalid answer."
+                    );
+                }
+
+                displayAnswer(data.answer);
+
+                await loadHistory();
+
+            } catch (error) {
+                console.error("Study Assistant error:", error);
+
+                if (error instanceof TypeError) {
+                    answer.textContent =
+                        "Unable to connect to the backend. Make sure your Flask server is running and check the browser console for details.";
+                } else {
+                    answer.textContent =
+                        "Sorry, we could not get your answer. " +
+                        error.message +
+                        "\n\nPlease try again in a moment.";
+                }
+
+            } finally {
+                askButton.disabled = false;
+            }
+        });
+
+        // Clear the current answer without deleting saved history.
+        clearButton.addEventListener("click", function () {
+            answer.textContent = "Your answer will appear here.";
+            questionInput.value = "";
+            questionInput.focus();
+        });
+
+        // Refresh saved history and dashboard.
+        refreshHistoryButton.addEventListener("click", loadHistory);
+
+        // Load documents and history when the website opens.
+        loadDocuments();
+        loadHistory();
+    </script>
+</body>
+</html>
