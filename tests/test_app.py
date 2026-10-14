@@ -22,7 +22,6 @@ def test_documents_route(tmp_path, monkeypatch):
         encoding="utf-8"
     )
 
-    # Use a temporary folder so real study files are not changed.
     monkeypatch.setattr(
         app_module,
         "STUDY_MATERIAL_DIR",
@@ -83,3 +82,68 @@ def test_ask_rejects_non_string_question():
     assert response.get_json() == {
         "error": "Please enter a question."
     }
+
+
+def test_read_study_document_success(tmp_path, monkeypatch):
+    """Check that a valid text document can be read."""
+    study_file = tmp_path / "test_document.txt"
+    study_file.write_text(
+        "Plants use sunlight for photosynthesis.",
+        encoding="utf-8"
+    )
+
+    monkeypatch.setattr(
+        app_module,
+        "STUDY_MATERIAL_DIR",
+        tmp_path
+    )
+
+    result = app_module.read_study_document("test_document.txt")
+
+    assert result == "Plants use sunlight for photosynthesis."
+
+
+def test_read_study_document_rejects_path_traversal():
+    """Check that paths trying to leave the study folder are rejected."""
+    unsafe_names = [
+        "../secret.txt",
+        "..\\secret.txt",
+        "folder/document.txt",
+        "folder\\document.txt",
+    ]
+
+    for document_name in unsafe_names:
+        try:
+            app_module.read_study_document(document_name)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(
+                f"Unsafe document name was accepted: {document_name}"
+            )
+
+
+def test_read_study_document_rejects_non_txt_file():
+    """Check that files with other extensions are rejected."""
+    try:
+        app_module.read_study_document("notes.pdf")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("A non-text file was accepted.")
+
+
+def test_read_study_document_rejects_missing_file(tmp_path, monkeypatch):
+    """Check that a missing document raises FileNotFoundError."""
+    monkeypatch.setattr(
+        app_module,
+        "STUDY_MATERIAL_DIR",
+        tmp_path
+    )
+
+    try:
+        app_module.read_study_document("missing.txt")
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("A missing document was accepted.")
