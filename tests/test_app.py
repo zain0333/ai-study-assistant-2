@@ -1,3 +1,4 @@
+
 import backend.app as app_module
 
 
@@ -21,7 +22,7 @@ def test_documents_route(tmp_path, monkeypatch):
         encoding="utf-8"
     )
 
-    # Use a temporary folder so the real study files are not changed.
+    # Use a temporary folder so real study files are not changed.
     monkeypatch.setattr(
         app_module,
         "STUDY_MATERIAL_DIR",
@@ -51,4 +52,34 @@ def test_documents_route_when_folder_is_empty(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert response.get_json() == {
         "documents": []
+    }
+
+
+def test_ask_rejects_empty_question():
+    """Check that an empty question returns a 400 error."""
+    client = app_module.app.test_client()
+
+    response = client.post(
+        "/ask",
+        json={"question": ""}
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "Please enter a question."
+    }
+
+
+def test_ask_rejects_non_string_question():
+    """Check that a question that is not text returns a 400 error."""
+    client = app_module.app.test_client()
+
+    response = client.post(
+        "/ask",
+        json={"question": 123}
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "Please enter a question."
     }
