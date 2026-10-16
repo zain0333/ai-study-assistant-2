@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,54 +10,139 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
 
     <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --background: #f4f6fb;
+            --card: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --danger: #dc2626;
+            --success: #15803d;
+        }
+
         * {
             box-sizing: border-box;
         }
 
         body {
-            font-family: Arial, sans-serif;
-            max-width: 750px;
-            margin: 40px auto;
-            padding: 20px;
-            background: #f3f6fb;
-            color: #1e293b;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 18px 6%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 23px;
+            color: var(--primary);
+        }
+
+        header p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .header-user {
+            color: var(--muted);
+            font-size: 13px;
+            overflow-wrap: anywhere;
         }
 
         main {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+            width: min(1050px, 92%);
+            margin: 30px auto;
         }
 
-        h1 {
-            color: #1d4ed8;
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04);
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 21px;
+        }
+
+        h3 {
+            margin: 0 0 10px;
+            font-size: 17px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .small {
+            font-size: 13px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin: 14px 0 6px;
         }
 
         input,
+        textarea,
         select {
             width: 100%;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid #cbd5e1;
-            border-radius: 6px;
+            padding: 12px 13px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font: inherit;
             background: white;
-            color: #1e293b;
-            font-size: 16px;
+            color: var(--text);
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: 2px solid #c7d2fe;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            min-height: 115px;
+            resize: vertical;
         }
 
         button {
-            padding: 12px 18px;
-            background: #2563eb;
-            color: white;
+            padding: 10px 16px;
             border: none;
-            border-radius: 6px;
-            cursor: pointer;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
             font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 8px 0 0;
         }
 
         button:hover {
-            opacity: 0.9;
+            background: var(--primary-dark);
         }
 
         button:disabled {
@@ -64,669 +150,739 @@
             cursor: not-allowed;
         }
 
-        .document-section {
-            margin: 20px 0;
+        .secondary {
+            background: #e5e7eb;
+            color: #1f2937;
         }
 
-        .document-section label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
+        .secondary:hover {
+            background: #d1d5db;
         }
 
-        #documentStatus {
-            margin-top: 0;
+        .danger {
+            background: var(--danger);
         }
 
-        .answer-heading {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin-top: 22px;
+        .danger:hover {
+            background: #b91c1c;
         }
 
-        .answer-heading h2 {
-            margin: 0;
-        }
-
-        .clear-button {
-            background: #64748b;
-        }
-
-        #answer {
-            line-height: 1.7;
-            overflow-wrap: anywhere;
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
             margin-top: 18px;
         }
 
-        #answer h3 {
-            margin-top: 24px;
-            color: #1d4ed8;
+        .stat {
+            padding: 18px;
+            border: 1px solid var(--border);
+            background: #fafaff;
+            border-radius: 10px;
         }
 
-        #answer li {
-            margin-bottom: 6px;
+        .stat p {
+            color: var(--muted);
+            margin: 0;
+            font-size: 13px;
         }
 
-        #answer table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 16px 0;
+        .stat strong {
+            display: block;
+            font-size: 28px;
+            margin-top: 4px;
+            color: var(--primary);
         }
 
-        #answer th,
-        #answer td {
-            border: 1px solid #dbe3ee;
-            padding: 8px;
-            text-align: left;
+        .message {
+            margin-top: 12px;
+            font-size: 14px;
+            overflow-wrap: anywhere;
         }
 
-        #answer th {
-            background: #f3f6fb;
+        .error {
+            color: var(--danger);
         }
 
-        #answer pre {
-            padding: 12px;
-            background: #f3f6fb;
-            border-radius: 6px;
+        .success {
+            color: var(--success);
+        }
+
+        .answer-content,
+        .history-answer {
+            overflow-wrap: anywhere;
+        }
+
+        .answer-content pre,
+        .history-answer pre {
             overflow-x: auto;
+            padding: 12px;
+            background: #f3f4f6;
+            border-radius: 8px;
         }
 
-        #answer code {
-            background: #f3f6fb;
+        .answer-content code,
+        .history-answer code {
+            background: #f3f4f6;
             padding: 2px 4px;
             border-radius: 4px;
         }
 
-        #answer pre code {
-            padding: 0;
-        }
-
-        /* Student Dashboard */
-        .dashboard {
-            margin-top: 24px;
-            padding: 20px;
-            background: #eff6ff;
-            border: 1px solid #dbeafe;
-            border-radius: 10px;
-        }
-
-        .dashboard h2 {
+        .answer-content p:first-child,
+        .history-answer p:first-child {
             margin-top: 0;
-            color: #1d4ed8;
-        }
-
-        .dashboard-welcome {
-            margin-bottom: 18px;
-            line-height: 1.6;
-        }
-
-        .dashboard-stats {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 12px;
-        }
-
-        .dashboard-card {
-            padding: 16px;
-            background: white;
-            border: 1px solid #dbeafe;
-            border-radius: 8px;
-        }
-
-        .dashboard-label {
-            margin: 0 0 8px;
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        .dashboard-number {
-            margin: 0;
-            color: #1d4ed8;
-            font-size: 28px;
-            font-weight: bold;
-        }
-
-        /* Question History */
-        .history-section {
-            margin-top: 30px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 18px;
-        }
-
-        .history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .history-row {
-            display: flex;
-            align-items: stretch;
-            gap: 8px;
         }
 
         .history-item {
-            flex: 1;
-            min-width: 0;
-            text-align: left;
-            background: #f1f5f9;
-            color: #1e293b;
-            border: 1px solid #e2e8f0;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 14px;
+        }
+
+        .history-question {
+            font-weight: 700;
             overflow-wrap: anywhere;
         }
 
-        .history-item:hover {
-            background: #e2e8f0;
+        .history-answer {
+            color: #4b5563;
+            margin-top: 8px;
         }
 
-        .delete-button {
-            background: #dc2626;
-            flex-shrink: 0;
+        .history-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 8px;
         }
 
-        .delete-button:hover {
-            background: #b91c1c;
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 13px;
         }
 
-        .history-empty {
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        .history-status {
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        @media (max-width: 500px) {
-            body {
-                margin: 10px auto;
-                padding: 12px;
-            }
-
-            main {
-                padding: 18px;
-            }
-
-            .answer-heading {
-                align-items: flex-start;
-                flex-wrap: wrap;
-            }
-        }
-
-        @media (max-width: 400px) {
-            .dashboard {
-                padding: 14px;
-            }
-
-            .dashboard-stats {
+        @media (max-width: 600px) {
+            .stats {
                 grid-template-columns: 1fr;
             }
 
-            .history-row {
-                flex-wrap: wrap;
+            .card {
+                padding: 18px;
             }
 
-            .history-row .history-item {
-                width: 100%;
+            header h1 {
+                font-size: 20px;
             }
         }
     </style>
 </head>
 
 <body>
-    <main>
+<header>
+    <div>
         <h1>AI Study Assistant 2.0</h1>
-        <p>Ask a question and get help from your AI Study Assistant.</p>
+        <p>Your personal AI learning companion</p>
+    </div>
+    <div id="headerUser" class="header-user">Not logged in</div>
+</header>
 
-        <!-- Study Document Selector -->
-        <section class="document-section">
-            <label for="documentSelect">📄 Select a Study Document</label>
+<main>
+    <section id="accountForms" class="card">
+        <h2>Welcome to Your Study Assistant</h2>
+        <p class="muted">
+            Log in to ask questions and access your saved study history.
+        </p>
 
-            <select id="documentSelect">
-                <option value="">General question (no document)</option>
-            </select>
+        <form id="loginForm">
+            <h3>Login</h3>
 
-            <p
-                id="documentStatus"
-                class="history-status"
-                aria-live="polite"
-            >
-                Loading study documents...
-            </p>
-        </section>
+            <label for="loginEmail">Email address</label>
+            <input id="loginEmail" type="email"
+                   autocomplete="email" required
+                   placeholder="Enter your email">
 
-        <!-- Ask a Question -->
-        <form id="questionForm">
-            <input
-                type="text"
-                id="question"
-                placeholder="Enter your question"
-                aria-label="Enter your question"
-                required
-            >
+            <label for="loginPassword">Password</label>
+            <input id="loginPassword" type="password"
+                   autocomplete="current-password" required
+                   placeholder="Enter your password">
 
-            <button type="submit" id="askButton">Ask</button>
+            <button id="loginButton" type="submit">Login</button>
+            <button id="showRegisterButton" type="button" class="secondary">
+                Create Account
+            </button>
         </form>
 
-        <!-- Answer -->
-        <div class="answer-heading">
-            <h2>Answer</h2>
+        <form id="registerForm" class="hidden">
+            <h3>Create Account</h3>
 
-            <button
-                type="button"
-                id="clearButton"
-                class="clear-button"
-            >
-                Clear Answer
+            <label for="registerEmail">Email address</label>
+            <input id="registerEmail" type="email"
+                   autocomplete="email" required
+                   placeholder="Enter your email">
+
+            <label for="registerPassword">Password</label>
+            <input id="registerPassword" type="password"
+                   autocomplete="new-password" required minlength="6"
+                   placeholder="Create a password">
+
+            <button id="registerButton" type="submit">Register</button>
+            <button id="showLoginButton" type="button" class="secondary">
+                Back to Login
             </button>
-        </div>
+        </form>
 
-        <div id="answer" aria-live="polite">
-            Your answer will appear here.
-        </div>
+        <div id="accountMessage" class="message" role="status"></div>
+    </section>
 
-        <!-- Student Dashboard -->
-        <section class="dashboard">
-            <h2>📚 Student Dashboard</h2>
-
-            <p class="dashboard-welcome">
+    <section id="loggedInArea" class="hidden">
+        <section class="card">
+            <h2>Student Dashboard</h2>
+            <p id="dashboardMessage" class="muted">
                 Welcome to your AI Study Assistant!
-                Keep learning, ask questions, and review your saved answers.
             </p>
 
-            <div class="dashboard-stats">
-                <div class="dashboard-card">
-                    <p class="dashboard-label">Total Saved Questions</p>
-                    <p
-                        class="dashboard-number"
-                        id="totalQuestions"
-                        aria-live="polite"
-                    >0</p>
+            <div class="stats">
+                <div class="stat">
+                    <p>Total Saved Questions</p>
+                    <strong id="totalQuestions">0</strong>
                 </div>
 
-                <div class="dashboard-card">
-                    <p class="dashboard-label">Questions Displayed</p>
-                    <p
-                        class="dashboard-number"
-                        id="displayedQuestions"
-                        aria-live="polite"
-                    >0</p>
+                <div class="stat">
+                    <p>Questions Displayed</p>
+                    <strong id="displayedQuestions">0</strong>
                 </div>
             </div>
         </section>
 
-        <!-- Question History -->
-        <section class="history-section">
-            <h2>Question History</h2>
-            <p>Click a previous question to view its answer again.</p>
+        <section class="card">
+            <h2>Ask Your AI Assistant</h2>
+            <p class="muted">
+                Select a study document if you want help with a specific topic.
+            </p>
 
-            <button type="button" id="refreshHistoryButton">
+            <label for="documentSelect">Study document</label>
+            <select id="documentSelect">
+                <option value="">General question (no document selected)</option>
+            </select>
+
+            <button id="refreshDocumentsButton" type="button" class="secondary">
+                Refresh Documents
+            </button>
+
+            <label for="question">Your question</label>
+            <textarea id="question"
+                placeholder="For example: Explain photosynthesis in simple English."></textarea>
+
+            <button id="askButton" type="button">Ask AI</button>
+            <button id="clearAnswerButton" type="button" class="secondary">
+                Clear Answer
+            </button>
+
+            <div id="askMessage" class="message" role="status"></div>
+
+            <section id="answerCard" class="hidden" style="margin-top:24px">
+                <h3>Answer</h3>
+                <div id="answer" class="answer-content"></div>
+            </section>
+        </section>
+
+        <section class="card">
+            <h2>Question History</h2>
+            <p id="historyDescription" class="muted">
+                Your saved questions and answers will appear here.
+            </p>
+
+            <button id="refreshHistoryButton" type="button" class="secondary">
                 Refresh History
             </button>
 
-            <p
-                id="historyStatus"
-                class="history-status"
-                aria-live="polite"
-            >
-                Loading saved history...
-            </p>
-
-            <div id="historyList" class="history-list">
-                <p class="history-empty">Loading saved questions...</p>
-            </div>
+            <div id="historyMessage" class="message" role="status"></div>
+            <div id="historyList"></div>
         </section>
-    </main>
 
-    <script>
-        const API_URL = "http://127.0.0.1:5000";
-        const MAX_HISTORY = 10;
+        <section class="card">
+            <h2>Your Account</h2>
+            <p>Logged in as: <strong id="userEmail"></strong></p>
+            <button id="logoutButton" type="button" class="danger">Logout</button>
+        </section>
+    </section>
+</main>
 
-        const form = document.getElementById("questionForm");
-        const questionInput = document.getElementById("question");
-        const documentSelect = document.getElementById("documentSelect");
-        const documentStatus = document.getElementById("documentStatus");
-        const answer = document.getElementById("answer");
-        const askButton = document.getElementById("askButton");
-        const clearButton = document.getElementById("clearButton");
-        const historyList = document.getElementById("historyList");
-        const historyStatus = document.getElementById("historyStatus");
+<footer>AI Study Assistant 2.0 · Learn one question at a time</footer>
 
-        const refreshHistoryButton =
-            document.getElementById("refreshHistoryButton");
+<script>
+    const API_URL = "http://127.0.0.1:5000";
+    const MAX_HISTORY = 10;
+    const TOKEN_KEY = "studyAssistantToken";
 
-        const totalQuestionsElement =
-            document.getElementById("totalQuestions");
+    let accessToken = localStorage.getItem(TOKEN_KEY) || "";
+    let currentUser = null;
+    let savedHistory = [];
 
-        const displayedQuestionsElement =
-            document.getElementById("displayedQuestions");
+    const $ = (id) => document.getElementById(id);
 
-        let historyItems = [];
+    function showMessage(elementId, message, type = "") {
+        const element = $(elementId);
+        element.textContent = message;
+        element.className = "message" + (type ? " " + type : "");
+    }
 
-        // Safely display an AI answer with Markdown formatting.
-        function displayAnswer(answerText) {
-            if (
-                typeof marked === "undefined" ||
-                typeof DOMPurify === "undefined"
-            ) {
-                answer.textContent = answerText;
-                return;
-            }
+    function setBusy(buttonId, busy, busyText = "Please wait...") {
+        const button = $(buttonId);
 
-            const cleanedAnswer = answerText.replace(/&nbsp;/g, " ");
+        if (!button.dataset.originalText) {
+            button.dataset.originalText = button.textContent;
+        }
 
-            answer.innerHTML = DOMPurify.sanitize(
-                marked.parse(cleanedAnswer)
+        button.disabled = busy;
+        button.textContent = busy ? busyText : button.dataset.originalText;
+    }
+
+    async function apiRequest(path, options = {}) {
+        const headers = { ...(options.headers || {}) };
+
+        if (options.body && !headers["Content-Type"]) {
+            headers["Content-Type"] = "application/json";
+        }
+
+        if (accessToken) {
+            headers["Authorization"] = "Bearer " + accessToken;
+        }
+
+        let response;
+
+        try {
+            response = await fetch(API_URL + path, {
+                ...options,
+                headers
+            });
+        } catch {
+            throw new Error(
+                "Cannot connect to the backend. Make sure Flask is running at " +
+                API_URL + "."
             );
         }
 
-        // Load available study documents from the Flask backend.
-        async function loadDocuments() {
-            documentStatus.textContent = "Loading study documents...";
-            documentSelect.disabled = true;
+        const rawText = await response.text();
+        let data = {};
 
+        if (rawText) {
             try {
-                const response = await fetch(`${API_URL}/documents`);
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(
-                        data.error || "Could not load study documents."
-                    );
-                }
-
-                if (!Array.isArray(data.documents)) {
-                    throw new Error(
-                        "The documents response has an unexpected format."
-                    );
-                }
-
-                // Keep the general-question option.
-                documentSelect.replaceChildren();
-
-                const generalOption = document.createElement("option");
-                generalOption.value = "";
-                generalOption.textContent = "General question (no document)";
-                documentSelect.appendChild(generalOption);
-
-                // Add each available document.
-                data.documents.forEach(function (documentName) {
-                    if (typeof documentName !== "string") {
-                        return;
-                    }
-
-                    const option = document.createElement("option");
-                    option.value = documentName;
-                    option.textContent = documentName;
-                    documentSelect.appendChild(option);
-                });
-
-                if (data.documents.length > 0) {
-                    documentStatus.textContent =
-                        `${data.documents.length} study document(s) available. Select one before asking a question.`;
-                } else {
-                    documentStatus.textContent =
-                        "No study documents found. Add .txt files to the study_material folder.";
-                }
-
-            } catch (error) {
-                console.error("Document loading error:", error);
-
-                documentStatus.textContent =
-                    "Could not load documents. Check that the backend is running and try refreshing.";
-
-            } finally {
-                documentSelect.disabled = false;
+                data = JSON.parse(rawText);
+            } catch {
+                data = { message: rawText };
             }
         }
 
-        // Update the number of questions displayed in history.
-        function updateDisplayedCount() {
-            displayedQuestionsElement.textContent = historyItems.length;
-        }
+        if (!response.ok) {
+            const message = data.error || data.message ||
+                "Request failed with status " + response.status + ".";
 
-        // Display saved questions and their Delete buttons.
-        function renderHistory() {
-            historyList.replaceChildren();
-            updateDisplayedCount();
-
-            if (historyItems.length === 0) {
-                const message = document.createElement("p");
-                message.className = "history-empty";
-                message.textContent = "No saved questions yet.";
-                historyList.appendChild(message);
-                return;
+            if (response.status === 401 && accessToken) {
+                clearLogin();
             }
 
-            historyItems.forEach(function (item) {
-                const row = document.createElement("div");
-                row.className = "history-row";
+            throw new Error(message);
+        }
 
-                const questionButton = document.createElement("button");
-                questionButton.type = "button";
-                questionButton.className = "history-item";
-                questionButton.textContent = item.question;
+        return data;
+    }
 
-                questionButton.addEventListener("click", function () {
-                    questionInput.value = item.question;
-                    displayAnswer(item.answer);
-                });
+    function clearLogin() {
+        accessToken = "";
+        currentUser = null;
+        localStorage.removeItem(TOKEN_KEY);
 
-                const deleteButton = document.createElement("button");
-                deleteButton.type = "button";
-                deleteButton.className = "delete-button";
-                deleteButton.textContent = "Delete";
-                deleteButton.setAttribute(
-                    "aria-label",
-                    "Delete question: " + item.question
-                );
+        $("accountForms").classList.remove("hidden");
+        $("loggedInArea").classList.add("hidden");
+        $("headerUser").textContent = "Not logged in";
+    }
 
-                deleteButton.addEventListener("click", async function () {
-                    const confirmed = window.confirm(
-                        "Are you sure you want to permanently delete this saved question?"
-                    );
+    function setLoggedIn(user) {
+        currentUser = user || null;
 
-                    if (!confirmed) {
-                        return;
-                    }
+        $("accountForms").classList.add("hidden");
+        $("loggedInArea").classList.remove("hidden");
 
-                    deleteButton.disabled = true;
-                    deleteButton.textContent = "Deleting...";
+        const email = currentUser && currentUser.email
+            ? currentUser.email
+            : $("loginEmail").value.trim();
 
-                    try {
-                        const response = await fetch(
-                            `${API_URL}/history/${encodeURIComponent(item.id)}`,
-                            { method: "DELETE" }
-                        );
+        $("userEmail").textContent = email || "Signed-in user";
+        $("headerUser").textContent = email || "Logged in";
+        $("dashboardMessage").textContent =
+            "Welcome to your AI Study Assistant! Ask questions and review your saved answers.";
 
-                        const data = await response.json();
+        showMessage("accountMessage", "");
+    }
 
-                        if (!response.ok) {
-                            throw new Error(
-                                data.error || "Could not delete the question."
-                            );
-                        }
+    function showLoggedOut() {
+        clearLogin();
+        showMessage("accountMessage", "");
+    }
 
-                        await loadHistory();
+    $("showRegisterButton").addEventListener("click", () => {
+        $("loginForm").classList.add("hidden");
+        $("registerForm").classList.remove("hidden");
+        showMessage("accountMessage", "");
+    });
 
-                        historyStatus.textContent =
-                            "Question deleted successfully.";
+    $("showLoginButton").addEventListener("click", () => {
+        $("registerForm").classList.add("hidden");
+        $("loginForm").classList.remove("hidden");
+        showMessage("accountMessage", "");
+    });
 
-                    } catch (error) {
-                        console.error("Delete history error:", error);
+    $("registerForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
 
-                        window.alert(
-                            "Could not delete this question. " + error.message
-                        );
+        const email = $("registerEmail").value.trim();
+        const password = $("registerPassword").value;
 
-                        deleteButton.disabled = false;
-                        deleteButton.textContent = "Delete";
-                    }
-                });
+        setBusy("registerButton", true, "Creating account...");
+        showMessage("accountMessage", "Creating your account...");
 
-                row.appendChild(questionButton);
-                row.appendChild(deleteButton);
-                historyList.appendChild(row);
+        try {
+            const data = await apiRequest("/auth/register", {
+                method: "POST",
+                body: JSON.stringify({ email, password })
             });
+
+            showMessage(
+                "accountMessage",
+                data.message || "Registration completed. You can try logging in.",
+                "success"
+            );
+
+            $("registerPassword").value = "";
+        } catch (error) {
+            showMessage("accountMessage", error.message, "error");
+        } finally {
+            setBusy("registerButton", false);
+        }
+    });
+
+    // Login supports both token response formats.
+    $("loginForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        const email = $("loginEmail").value.trim();
+        const password = $("loginPassword").value;
+
+        setBusy("loginButton", true, "Logging in...");
+        showMessage("accountMessage", "Checking your login details...");
+
+        try {
+            const data = await apiRequest("/auth/login", {
+                method: "POST",
+                body: JSON.stringify({ email, password })
+            });
+
+            // Fix: accept either nested or top-level access tokens.
+            const token = data?.session?.access_token || data?.access_token;
+
+            if (!token) {
+                throw new Error(
+                    "Login response has no access token. Check the Flask backend."
+                );
+            }
+
+            accessToken = token;
+            localStorage.setItem(TOKEN_KEY, accessToken);
+
+            currentUser = data.user || null;
+            $("loginPassword").value = "";
+
+            setLoggedIn(currentUser);
+
+            await loadDocuments();
+            await loadHistory();
+        } catch (error) {
+            showMessage("accountMessage", error.message, "error");
+        } finally {
+            setBusy("loginButton", false);
+        }
+    });
+
+    async function loadDocuments() {
+        const select = $("documentSelect");
+        const previousValue = select.value;
+
+        try {
+            const data = await apiRequest("/documents");
+            const documents = Array.isArray(data.documents) ? data.documents : [];
+
+            select.replaceChildren();
+
+            const generalOption = document.createElement("option");
+            generalOption.value = "";
+            generalOption.textContent = "General question (no document selected)";
+            select.appendChild(generalOption);
+
+            documents.forEach((item) => {
+                const name = typeof item === "string" ? item : item.name;
+                if (!name) return;
+
+                const option = document.createElement("option");
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+
+            if (documents.some((item) =>
+                (typeof item === "string" ? item : item.name) === previousValue
+            )) {
+                select.value = previousValue;
+            }
+
+            showMessage(
+                "askMessage",
+                documents.length
+                    ? documents.length + " study document(s) loaded."
+                    : "No study documents found. You can still ask general questions.",
+                "success"
+            );
+        } catch (error) {
+            showMessage(
+                "askMessage",
+                "Could not load study documents: " + error.message,
+                "error"
+            );
+        }
+    }
+
+    $("refreshDocumentsButton").addEventListener("click", loadDocuments);
+
+    $("askButton").addEventListener("click", async () => {
+        const question = $("question").value.trim();
+        const documentName = $("documentSelect").value;
+
+        if (!question) {
+            showMessage("askMessage", "Please enter a question first.", "error");
+            $("question").focus();
+            return;
         }
 
-        // Load saved questions from the Flask backend.
-        async function loadHistory() {
-            historyStatus.textContent = "Loading saved history...";
-            refreshHistoryButton.disabled = true;
+        setBusy("askButton", true, "Thinking...");
+        $("answerCard").classList.add("hidden");
+        showMessage("askMessage", "Your AI assistant is preparing an answer...");
 
-            try {
-                const response = await fetch(`${API_URL}/history`);
-                const data = await response.json();
+        try {
+            const data = await apiRequest("/ask", {
+                method: "POST",
+                body: JSON.stringify({
+                    question,
+                    document: documentName,
+                    document_name: documentName,
+                    selected_document: documentName
+                })
+            });
 
-                if (!response.ok) {
-                    throw new Error(
-                        data.error || "Could not retrieve saved history."
-                    );
-                }
-
-                if (!Array.isArray(data.history)) {
-                    throw new Error(
-                        "The history response has an unexpected format."
-                    );
-                }
-
-                const validHistory = data.history.filter(function (item) {
-                    return (
-                        item.id !== undefined &&
-                        item.id !== null &&
-                        typeof item.question === "string" &&
-                        typeof item.answer === "string"
-                    );
-                });
-
-                totalQuestionsElement.textContent = validHistory.length;
-
-                historyItems = validHistory
-                    .map(function (item) {
-                        return {
-                            id: item.id,
-                            question: item.question,
-                            answer: item.answer
-                        };
-                    })
-                    .slice(0, MAX_HISTORY);
-
-                renderHistory();
-
-                historyStatus.textContent =
-                    `Showing ${historyItems.length} saved question(s).`;
-
-            } catch (error) {
-                console.error("History loading error:", error);
-
-                historyStatus.textContent =
-                    "Could not load saved history. Check your backend and try refreshing.";
-
-                historyList.replaceChildren();
-
-                const message = document.createElement("p");
-                message.className = "history-empty";
-                message.textContent = error.message;
-                historyList.appendChild(message);
-
-                totalQuestionsElement.textContent = "—";
-                displayedQuestionsElement.textContent = "—";
-
-            } finally {
-                refreshHistoryButton.disabled = false;
+            if (!data.answer) {
+                throw new Error("The backend returned no answer.");
             }
+
+            const answerElement = $("answer");
+
+            if (window.marked && window.DOMPurify) {
+                answerElement.innerHTML = DOMPurify.sanitize(
+                    marked.parse(String(data.answer))
+                );
+            } else {
+                answerElement.textContent = String(data.answer);
+            }
+
+            $("answerCard").classList.remove("hidden");
+            showMessage("askMessage", "Answer received successfully.", "success");
+
+            await loadHistory();
+        } catch (error) {
+            showMessage("askMessage", error.message, "error");
+        } finally {
+            setBusy("askButton", false);
+        }
+    });
+
+    $("clearAnswerButton").addEventListener("click", () => {
+        $("answer").replaceChildren();
+        $("answerCard").classList.add("hidden");
+        showMessage("askMessage", "");
+    });
+
+    async function loadHistory() {
+        showMessage("historyMessage", "Loading saved history...");
+
+        try {
+            const data = await apiRequest("/history");
+            savedHistory = Array.isArray(data.history) ? data.history : [];
+
+            renderHistory();
+
+            showMessage(
+                "historyMessage",
+                savedHistory.length
+                    ? "Saved history loaded successfully."
+                    : "No saved questions yet.",
+                "success"
+            );
+        } catch (error) {
+            showMessage("historyMessage", error.message, "error");
+            $("historyList").replaceChildren();
+            $("historyDescription").textContent =
+                "Your saved question history could not be loaded.";
+        }
+    }
+
+    function renderHistory() {
+        const list = $("historyList");
+        list.replaceChildren();
+
+        const displayedHistory = savedHistory.slice(0, MAX_HISTORY);
+
+        $("totalQuestions").textContent = String(savedHistory.length);
+        $("displayedQuestions").textContent = String(displayedHistory.length);
+
+        $("historyDescription").textContent = savedHistory.length
+            ? "Showing " + displayedHistory.length +
+              " of " + savedHistory.length + " saved question(s)."
+            : "Your saved questions and answers will appear here.";
+
+        displayedHistory.forEach((item) => {
+            const card = document.createElement("article");
+            card.className = "history-item";
+
+            const questionTitle = document.createElement("div");
+            questionTitle.className = "history-question";
+            questionTitle.textContent = item.question || "Untitled question";
+
+            const answerText = document.createElement("div");
+            answerText.className = "history-answer";
+
+            const answer = String(item.answer || "");
+            const shortAnswer = answer.length > 500
+                ? answer.slice(0, 500) + "..."
+                : answer;
+
+            // Fix escaped Markdown, e.g. \*\*bold\*\* becomes **bold**.
+            const formattedAnswer = shortAnswer.replace(/\\([*_`])/g, "$1");
+
+            // Render formatted Markdown safely.
+            if (window.marked && window.DOMPurify) {
+                answerText.innerHTML = DOMPurify.sanitize(
+                    marked.parse(formattedAnswer)
+                );
+            } else {
+                answerText.textContent = formattedAnswer;
+            }
+
+            const date = document.createElement("div");
+            date.className = "history-meta";
+
+            if (item.created_at) {
+                const parsedDate = new Date(item.created_at);
+                date.textContent = Number.isNaN(parsedDate.getTime())
+                    ? String(item.created_at)
+                    : parsedDate.toLocaleString();
+            }
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "danger";
+            deleteButton.textContent = "Delete";
+            deleteButton.addEventListener("click", () => {
+                deleteHistoryItem(item.id, deleteButton);
+            });
+
+            card.appendChild(questionTitle);
+            card.appendChild(answerText);
+
+            if (date.textContent) {
+                card.appendChild(date);
+            }
+
+            card.appendChild(deleteButton);
+            list.appendChild(card);
+        });
+    }
+
+    async function deleteHistoryItem(id, button) {
+        if (id === undefined || id === null) {
+            showMessage("historyMessage", "This history item has no ID.", "error");
+            return;
         }
 
-        // Send the question and selected document to the backend.
-        form.addEventListener("submit", async function (event) {
-            event.preventDefault();
+        if (!confirm("Are you sure you want to delete this saved question?")) {
+            return;
+        }
 
-            const question = questionInput.value.trim();
-            const selectedDocument = documentSelect.value;
+        button.disabled = true;
+        button.textContent = "Deleting...";
 
-            if (!question) {
-                answer.textContent = "Please enter a question.";
-                return;
-            }
+        try {
+            await apiRequest("/history/" + encodeURIComponent(id), {
+                method: "DELETE"
+            });
 
-            if (
-                typeof marked === "undefined" ||
-                typeof DOMPurify === "undefined"
-            ) {
-                answer.textContent =
-                    "The formatting libraries could not load. Check your internet connection and refresh the page.";
-                return;
-            }
+            savedHistory = savedHistory.filter(
+                (item) => String(item.id) !== String(id)
+            );
 
-            askButton.disabled = true;
-            answer.textContent = "AI is preparing your answer...";
+            renderHistory();
+            showMessage("historyMessage", "Question deleted successfully.", "success");
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = "Delete";
+            showMessage("historyMessage", error.message, "error");
+        }
+    }
 
-            try {
-                const response = await fetch(`${API_URL}/ask`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        question: question,
-                        document: selectedDocument || null
-                    })
-                });
+    $("refreshHistoryButton").addEventListener("click", loadHistory);
 
-                const data = await response.json();
+    $("logoutButton").addEventListener("click", () => {
+        showLoggedOut();
+        savedHistory = [];
+        $("historyList").replaceChildren();
+        $("totalQuestions").textContent = "0";
+        $("displayedQuestions").textContent = "0";
+        $("question").value = "";
+        $("answer").replaceChildren();
+        $("answerCard").classList.add("hidden");
+        showMessage("askMessage", "");
+        showMessage("historyMessage", "");
+        showMessage("accountMessage", "You have logged out.", "success");
+        $("loginPassword").value = "";
+    });
 
-                if (!response.ok) {
-                    throw new Error(
-                        data.error || "The request failed."
-                    );
-                }
+    async function initializeApp() {
+        try {
+            await apiRequest("/");
+        } catch (error) {
+            showMessage("accountMessage", error.message, "error");
+            return;
+        }
 
-                if (typeof data.answer !== "string") {
-                    throw new Error(
-                        "The AI returned an invalid answer."
-                    );
-                }
+        if (!accessToken) return;
 
-                displayAnswer(data.answer);
+        try {
+            const data = await apiRequest("/auth/me");
+            currentUser = data.user || null;
 
-                await loadHistory();
+            setLoggedIn(currentUser);
+            await loadDocuments();
+            await loadHistory();
+        } catch {
+            showLoggedOut();
+            showMessage(
+                "accountMessage",
+                "Your saved login has expired. Please log in again.",
+                "error"
+            );
+        }
+    }
 
-            } catch (error) {
-                console.error("Study Assistant error:", error);
-
-                if (error instanceof TypeError) {
-                    answer.textContent =
-                        "Unable to connect to the backend. Make sure your Flask server is running and check the browser console for details.";
-                } else {
-                    answer.textContent =
-                        "Sorry, we could not get your answer. " +
-                        error.message +
-                        "\n\nPlease try again in a moment.";
-                }
-
-            } finally {
-                askButton.disabled = false;
-            }
-        });
-
-        // Clear the current answer without deleting saved history.
-        clearButton.addEventListener("click", function () {
-            answer.textContent = "Your answer will appear here.";
-            questionInput.value = "";
-            questionInput.focus();
-        });
-
-        // Refresh saved history and dashboard.
-        refreshHistoryButton.addEventListener("click", loadHistory);
-
-        // Load documents and history when the website opens.
-        loadDocuments();
-        loadHistory();
-    </script>
+    initializeApp();
+</script>
 </body>
 </html>

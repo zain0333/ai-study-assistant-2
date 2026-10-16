@@ -33,7 +33,7 @@ def test_documents_route(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json() == {
-        "documents": ["test_document.txt"]
+        "documents": [{"name": "test_document.txt"}]
     }
 
 
