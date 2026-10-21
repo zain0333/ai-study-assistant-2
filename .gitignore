@@ -5,3 +5,6 @@ __pycache__/
 .env.local
 .next/
 node_modules/
+# Backup files
+*.backup
+*_backup.py
