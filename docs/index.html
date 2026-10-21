@@ -1,0 +1,1051 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Assistant 2.0</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-dark: #3730a3;
+            --background: #f4f6fb;
+            --card: #ffffff;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --border: #e5e7eb;
+            --danger: #dc2626;
+            --success: #15803d;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: var(--background);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 18px 6%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 23px;
+            color: var(--primary);
+        }
+
+        header p {
+            margin: 3px 0 0;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .header-user {
+            color: var(--muted);
+            font-size: 13px;
+            overflow-wrap: anywhere;
+        }
+
+        main {
+            width: min(1050px, 92%);
+            margin: 30px auto;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 24px;
+            margin-bottom: 22px;
+            box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04);
+        }
+
+        h2 {
+            margin: 0 0 14px;
+            font-size: 21px;
+        }
+
+        h3 {
+            margin: 0 0 10px;
+            font-size: 17px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .small {
+            font-size: 13px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin: 14px 0 6px;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 12px 13px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font: inherit;
+            background: white;
+            color: var(--text);
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: 2px solid #c7d2fe;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            min-height: 115px;
+            resize: vertical;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            background: var(--primary);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px 8px 0 0;
+        }
+
+        button:hover {
+            background: var(--primary-dark);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .secondary {
+            background: #e5e7eb;
+            color: #1f2937;
+        }
+
+        .secondary:hover {
+            background: #d1d5db;
+        }
+
+        .danger {
+            background: var(--danger);
+        }
+
+        .danger:hover {
+            background: #b91c1c;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .stat {
+            padding: 18px;
+            border: 1px solid var(--border);
+            background: #fafaff;
+            border-radius: 10px;
+        }
+
+        .stat p {
+            color: var(--muted);
+            margin: 0;
+            font-size: 13px;
+        }
+
+        .stat strong {
+            display: block;
+            font-size: 28px;
+            margin-top: 4px;
+            color: var(--primary);
+        }
+
+        .message {
+            margin-top: 12px;
+            font-size: 14px;
+            overflow-wrap: anywhere;
+        }
+
+        .error {
+            color: var(--danger);
+        }
+
+        .success {
+            color: var(--success);
+        }
+
+        .answer-content,
+        .history-answer {
+            overflow-wrap: anywhere;
+        }
+
+        .answer-content pre,
+        .history-answer pre {
+            overflow-x: auto;
+            padding: 12px;
+            background: #f3f4f6;
+            border-radius: 8px;
+        }
+
+        .answer-content code,
+        .history-answer code {
+            background: #f3f4f6;
+            padding: 2px 4px;
+            border-radius: 4px;
+        }
+
+        .answer-content p:first-child,
+        .history-answer p:first-child {
+            margin-top: 0;
+        }
+
+        .history-item {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-top: 14px;
+        }
+
+        .history-question {
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .history-answer {
+            color: #4b5563;
+            margin-top: 8px;
+        }
+
+        .history-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        @media (max-width: 600px) {
+            .stats {
+                grid-template-columns: 1fr;
+            }
+
+            .card {
+                padding: 18px;
+            }
+
+            header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div>
+            <h1>AI Study Assistant 2.0</h1>
+            <p>Your personal AI learning companion</p>
+        </div>
+        <div id="headerUser" class="header-user">Not logged in</div>
+    </header>
+
+    <main>
+        <section id="accountForms" class="card">
+            <h2>Welcome to Your Study Assistant</h2>
+            <p class="muted">
+                Log in to ask questions and access your saved study history.
+            </p>
+
+            <form id="loginForm">
+                <h3>Login</h3>
+
+                <label for="loginEmail">Email address</label>
+                <input
+                    id="loginEmail"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    placeholder="Enter your email"
+                >
+
+                <label for="loginPassword">Password</label>
+                <input
+                    id="loginPassword"
+                    type="password"
+                    autocomplete="current-password"
+                    required
+                    placeholder="Enter your password"
+                >
+
+                <button id="loginButton" type="submit">Login</button>
+                <button
+                    id="showRegisterButton"
+                    type="button"
+                    class="secondary"
+                >Create Account</button>
+            </form>
+
+            <form id="registerForm" class="hidden">
+                <h3>Create Account</h3>
+
+                <label for="registerEmail">Email address</label>
+                <input
+                    id="registerEmail"
+                    type="email"
+                    autocomplete="email"
+                    required
+                    placeholder="Enter your email"
+                >
+
+                <label for="registerPassword">Password</label>
+                <input
+                    id="registerPassword"
+                    type="password"
+                    autocomplete="new-password"
+                    required
+                    minlength="6"
+                    placeholder="Create a password"
+                >
+
+                <button id="registerButton" type="submit">Register</button>
+                <button
+                    id="showLoginButton"
+                    type="button"
+                    class="secondary"
+                >Back to Login</button>
+            </form>
+
+            <div
+                id="accountMessage"
+                class="message"
+                role="status"
+                aria-live="polite"
+            ></div>
+        </section>
+
+        <section id="loggedInArea" class="hidden">
+            <section class="card">
+                <h2>Student Dashboard</h2>
+                <p id="dashboardMessage" class="muted">
+                    Welcome to your AI Study Assistant!
+                </p>
+
+                <div class="stats">
+                    <div class="stat">
+                        <p>Total Saved Questions</p>
+                        <strong id="totalQuestions">0</strong>
+                    </div>
+
+                    <div class="stat">
+                        <p>Questions Displayed</p>
+                        <strong id="displayedQuestions">0</strong>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Ask Your AI Assistant</h2>
+                <p class="muted">
+                    Select a study document if you want help with a specific topic.
+                </p>
+
+                <label for="documentSelect">Study document</label>
+                <select id="documentSelect">
+                    <option value="">General question (no document selected)</option>
+                </select>
+
+                <button
+                    id="refreshDocumentsButton"
+                    type="button"
+                    class="secondary"
+                >Refresh Documents</button>
+
+                <label for="question">Your question</label>
+                <textarea
+                    id="question"
+                    placeholder="For example: Explain photosynthesis in simple English."
+                ></textarea>
+
+                <button id="askButton" type="button">Ask AI</button>
+                <button
+                    id="clearAnswerButton"
+                    type="button"
+                    class="secondary"
+                >Clear Answer</button>
+
+                <div
+                    id="askMessage"
+                    class="message"
+                    role="status"
+                    aria-live="polite"
+                ></div>
+
+                <section
+                    id="answerCard"
+                    class="hidden"
+                    style="margin-top:24px"
+                >
+                    <h3>Answer</h3>
+                    <div id="answer" class="answer-content"></div>
+                </section>
+            </section>
+
+            <section class="card">
+                <h2>Question History</h2>
+                <p id="historyDescription" class="muted">
+                    Your saved questions and answers will appear here.
+                </p>
+
+                <button
+                    id="refreshHistoryButton"
+                    type="button"
+                    class="secondary"
+                >Refresh History</button>
+
+                <div
+                    id="historyMessage"
+                    class="message"
+                    role="status"
+                    aria-live="polite"
+                ></div>
+
+                <div id="historyList"></div>
+            </section>
+
+            <section class="card">
+                <h2>Your Account</h2>
+                <p>Logged in as: <strong id="userEmail"></strong></p>
+                <button
+                    id="logoutButton"
+                    type="button"
+                    class="danger"
+                >Logout</button>
+            </section>
+        </section>
+    </main>
+
+    <footer>AI Study Assistant 2.0 · Learn one question at a time</footer>
+
+    <script>
+        const API_URL = "https://ai-study-assistant-2-sggs.onrender.com";
+        const MAX_HISTORY = 10;
+        const TOKEN_KEY = "studyAssistantToken";
+
+        let accessToken = localStorage.getItem(TOKEN_KEY) || "";
+        let currentUser = null;
+        let savedHistory = [];
+
+        const $ = (id) => document.getElementById(id);
+
+        function showMessage(elementId, message, type = "") {
+            const element = $(elementId);
+            element.textContent = message;
+            element.className = "message" + (type ? " " + type : "");
+        }
+
+        function setBusy(buttonId, busy, busyText = "Please wait...") {
+            const button = $(buttonId);
+
+            if (!button.dataset.originalText) {
+                button.dataset.originalText = button.textContent;
+            }
+
+            button.disabled = busy;
+            button.textContent = busy
+                ? busyText
+                : button.dataset.originalText;
+        }
+
+        function clearLogin() {
+            accessToken = "";
+            currentUser = null;
+
+            localStorage.removeItem(TOKEN_KEY);
+
+            $("accountForms").classList.remove("hidden");
+            $("loggedInArea").classList.add("hidden");
+            $("headerUser").textContent = "Not logged in";
+            $("userEmail").textContent = "";
+
+            savedHistory = [];
+            $("historyList").replaceChildren();
+            $("documentSelect").replaceChildren();
+
+            const option = document.createElement("option");
+            option.value = "";
+            option.textContent = "General question (no document selected)";
+            $("documentSelect").appendChild(option);
+
+            $("totalQuestions").textContent = "0";
+            $("displayedQuestions").textContent = "0";
+            $("question").value = "";
+            $("answer").replaceChildren();
+            $("answerCard").classList.add("hidden");
+        }
+
+        function setLoggedIn(user) {
+            currentUser = user || null;
+
+            $("accountForms").classList.add("hidden");
+            $("loggedInArea").classList.remove("hidden");
+
+            const email = currentUser && currentUser.email
+                ? currentUser.email
+                : $("loginEmail").value.trim();
+
+            $("userEmail").textContent = email || "Signed-in user";
+            $("headerUser").textContent = email || "Logged in";
+
+            $("dashboardMessage").textContent =
+                "Welcome to your AI Study Assistant! Ask questions and review your saved answers.";
+
+            showMessage("accountMessage", "");
+        }
+
+        function showLoggedOut() {
+            clearLogin();
+            showMessage("accountMessage", "");
+        }
+
+        async function apiRequest(path, options = {}) {
+            const headers = { ...(options.headers || {}) };
+
+            if (options.body && !headers["Content-Type"]) {
+                headers["Content-Type"] = "application/json";
+            }
+
+            if (accessToken) {
+                headers["Authorization"] = "Bearer " + accessToken;
+            }
+
+            let response;
+
+            try {
+                response = await fetch(API_URL + path, {
+                    ...options,
+                    headers
+                });
+            } catch {
+                throw new Error(
+                    "Cannot connect to the backend. Make sure Flask is running at " +
+                    API_URL + "."
+                );
+            }
+
+            const rawText = await response.text();
+            let data = {};
+
+            if (rawText) {
+                try {
+                    data = JSON.parse(rawText);
+                } catch {
+                    data = { message: rawText };
+                }
+            }
+
+            if (!response.ok) {
+                const message = data.error || data.message ||
+                    "Request failed with status " + response.status + ".";
+
+                if (response.status === 401 && accessToken) {
+                    clearLogin();
+                    showMessage(
+                        "accountMessage",
+                        "Your login session has expired. Please log in again.",
+                        "error"
+                    );
+                }
+
+                throw new Error(message);
+            }
+
+            return data;
+        }
+
+        $("showRegisterButton").addEventListener("click", () => {
+            $("loginForm").classList.add("hidden");
+            $("registerForm").classList.remove("hidden");
+            showMessage("accountMessage", "");
+        });
+
+        $("showLoginButton").addEventListener("click", () => {
+            $("registerForm").classList.add("hidden");
+            $("loginForm").classList.remove("hidden");
+            showMessage("accountMessage", "");
+        });
+
+        $("registerForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const email = $("registerEmail").value.trim();
+            const password = $("registerPassword").value;
+
+            setBusy("registerButton", true, "Creating account...");
+            showMessage("accountMessage", "Creating your account...");
+
+            try {
+                const data = await apiRequest("/auth/register", {
+                    method: "POST",
+                    body: JSON.stringify({ email, password })
+                });
+
+                showMessage(
+                    "accountMessage",
+                    data.message ||
+                        "Registration completed. You can try logging in.",
+                    "success"
+                );
+
+                $("registerPassword").value = "";
+            } catch (error) {
+                showMessage("accountMessage", error.message, "error");
+            } finally {
+                setBusy("registerButton", false);
+            }
+        });
+
+        $("loginForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+
+            const email = $("loginEmail").value.trim();
+            const password = $("loginPassword").value;
+
+            setBusy("loginButton", true, "Logging in...");
+            showMessage("accountMessage", "Checking your login details...");
+
+            try {
+                const data = await apiRequest("/auth/login", {
+                    method: "POST",
+                    body: JSON.stringify({ email, password })
+                });
+
+                const token =
+                    data?.session?.access_token || data?.access_token;
+
+                if (!token) {
+                    throw new Error(
+                        "Login response has no access token. Check the Flask backend."
+                    );
+                }
+
+                accessToken = token;
+                localStorage.setItem(TOKEN_KEY, accessToken);
+
+                currentUser = data.user || null;
+                $("loginPassword").value = "";
+
+                setLoggedIn(currentUser);
+
+                await loadDocuments();
+                await loadHistory();
+            } catch (error) {
+                showMessage("accountMessage", error.message, "error");
+            } finally {
+                setBusy("loginButton", false);
+            }
+        });
+
+        // Load study documents, including documents inside subject folders.
+        async function loadDocuments() {
+            const select = $("documentSelect");
+            const previousValue = select.value;
+
+            setBusy("refreshDocumentsButton", true, "Refreshing...");
+
+            try {
+                const data = await apiRequest("/documents");
+
+                if (!Array.isArray(data.documents)) {
+                    throw new Error(
+                        "The backend did not return a valid documents list."
+                    );
+                }
+
+                const documents = data.documents
+                    .map((item) => {
+                        // Support a simple string response from older backend versions.
+                        if (typeof item === "string") {
+                            const path = item.trim();
+
+                            return {
+                                name: path.split(/[\\/]/).pop(),
+                                path: path,
+                                subject: "General"
+                            };
+                        }
+
+                        const name = typeof item?.name === "string"
+                            ? item.name.trim()
+                            : "";
+
+                        const path = typeof item?.path === "string" &&
+                            item.path.trim()
+                                ? item.path.trim()
+                                : name;
+
+                        return {
+                            name: name || path.split(/[\\/]/).pop(),
+                            path: path,
+                            subject: typeof item?.subject === "string" &&
+                                item.subject.trim()
+                                    ? item.subject.trim()
+                                    : "General"
+                        };
+                    })
+                    .filter((item) => item.name && item.path);
+
+                select.replaceChildren();
+
+                const generalOption = document.createElement("option");
+                generalOption.value = "";
+                generalOption.textContent =
+                    "General question (no document selected)";
+                select.appendChild(generalOption);
+
+                // Show the subject and filename, but submit the full relative path.
+                documents.forEach((item) => {
+                    const option = document.createElement("option");
+
+                    option.value = item.path;
+                    option.textContent = `${item.subject} — ${item.name}`;
+
+                    select.appendChild(option);
+                });
+
+                // Restore the selected document if it is still available.
+                if (documents.some((item) => item.path === previousValue)) {
+                    select.value = previousValue;
+                }
+
+                showMessage(
+                    "askMessage",
+                    documents.length
+                        ? documents.length + " study document(s) loaded."
+                        : "No study documents found. You can still ask general questions.",
+                    "success"
+                );
+            } catch (error) {
+                showMessage(
+                    "askMessage",
+                    "Could not load study documents: " + error.message,
+                    "error"
+                );
+            } finally {
+                setBusy("refreshDocumentsButton", false);
+            }
+        }
+
+        $("refreshDocumentsButton").addEventListener("click", loadDocuments);
+
+        $("askButton").addEventListener("click", async () => {
+            const question = $("question").value.trim();
+            const selectedDocument = $("documentSelect").value || null;
+
+            if (!question) {
+                showMessage(
+                    "askMessage",
+                    "Please enter a question first.",
+                    "error"
+                );
+                $("question").focus();
+                return;
+            }
+
+            setBusy("askButton", true, "Thinking...");
+            $("answerCard").classList.add("hidden");
+
+            showMessage(
+                "askMessage",
+                "Your AI assistant is preparing an answer..."
+            );
+
+            try {
+                const data = await apiRequest("/ask", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        question: question,
+                        document: selectedDocument,
+                        document_name: selectedDocument,
+                        selected_document: selectedDocument
+                    })
+                });
+
+                if (typeof data.answer !== "string" || !data.answer.trim()) {
+                    throw new Error("The backend returned no answer.");
+                }
+
+                const answerElement = $("answer");
+
+                if (window.marked && window.DOMPurify) {
+                    answerElement.innerHTML = DOMPurify.sanitize(
+                        marked.parse(data.answer)
+                    );
+                } else {
+                    answerElement.textContent = data.answer;
+                }
+
+                $("answerCard").classList.remove("hidden");
+
+                showMessage(
+                    "askMessage",
+                    "Answer received successfully.",
+                    "success"
+                );
+
+                await loadHistory();
+            } catch (error) {
+                showMessage("askMessage", error.message, "error");
+            } finally {
+                setBusy("askButton", false);
+            }
+        });
+
+        $("clearAnswerButton").addEventListener("click", () => {
+            $("answer").replaceChildren();
+            $("answerCard").classList.add("hidden");
+            showMessage("askMessage", "");
+        });
+
+        async function loadHistory() {
+            setBusy("refreshHistoryButton", true, "Refreshing...");
+            showMessage("historyMessage", "Loading saved history...");
+
+            try {
+                const data = await apiRequest("/history");
+
+                savedHistory = Array.isArray(data.history)
+                    ? data.history
+                    : [];
+
+                renderHistory();
+
+                showMessage(
+                    "historyMessage",
+                    savedHistory.length
+                        ? "Saved history loaded successfully."
+                        : "No saved questions yet.",
+                    "success"
+                );
+            } catch (error) {
+                showMessage("historyMessage", error.message, "error");
+                $("historyList").replaceChildren();
+                $("historyDescription").textContent =
+                    "Your saved question history could not be loaded.";
+            } finally {
+                setBusy("refreshHistoryButton", false);
+            }
+        }
+
+        function renderHistory() {
+            const list = $("historyList");
+            list.replaceChildren();
+
+            const displayedHistory = savedHistory.slice(0, MAX_HISTORY);
+
+            $("totalQuestions").textContent = String(savedHistory.length);
+            $("displayedQuestions").textContent =
+                String(displayedHistory.length);
+
+            $("historyDescription").textContent = savedHistory.length
+                ? "Showing " + displayedHistory.length +
+                  " of " + savedHistory.length + " saved question(s)."
+                : "Your saved questions and answers will appear here.";
+
+            displayedHistory.forEach((item) => {
+                const card = document.createElement("article");
+                card.className = "history-item";
+
+                const questionTitle = document.createElement("div");
+                questionTitle.className = "history-question";
+                questionTitle.textContent =
+                    item.question || "Untitled question";
+
+                const answerText = document.createElement("div");
+                answerText.className = "history-answer";
+
+                const answer = String(item.answer || "");
+                const shortAnswer = answer.length > 500
+                    ? answer.slice(0, 500) + "..."
+                    : answer;
+
+                if (window.marked && window.DOMPurify) {
+                    answerText.innerHTML = DOMPurify.sanitize(
+                        marked.parse(shortAnswer)
+                    );
+                } else {
+                    answerText.textContent = shortAnswer;
+                }
+
+                const date = document.createElement("div");
+                date.className = "history-meta";
+
+                if (item.created_at) {
+                    const parsedDate = new Date(item.created_at);
+
+                    date.textContent = Number.isNaN(parsedDate.getTime())
+                        ? String(item.created_at)
+                        : parsedDate.toLocaleString();
+                }
+
+                const deleteButton = document.createElement("button");
+                deleteButton.type = "button";
+                deleteButton.className = "danger";
+                deleteButton.textContent = "Delete";
+
+                deleteButton.addEventListener("click", () => {
+                    deleteHistoryItem(item.id, deleteButton);
+                });
+
+                card.appendChild(questionTitle);
+                card.appendChild(answerText);
+
+                if (date.textContent) {
+                    card.appendChild(date);
+                }
+
+                card.appendChild(deleteButton);
+                list.appendChild(card);
+            });
+        }
+
+        async function deleteHistoryItem(id, button) {
+            if (id === undefined || id === null) {
+                showMessage(
+                    "historyMessage",
+                    "This history item has no ID.",
+                    "error"
+                );
+                return;
+            }
+
+            if (!confirm("Are you sure you want to delete this saved question?")) {
+                return;
+            }
+
+            button.disabled = true;
+            button.textContent = "Deleting...";
+
+            try {
+                await apiRequest(
+                    "/history/" + encodeURIComponent(id),
+                    { method: "DELETE" }
+                );
+
+                savedHistory = savedHistory.filter(
+                    (item) => String(item.id) !== String(id)
+                );
+
+                renderHistory();
+
+                showMessage(
+                    "historyMessage",
+                    "Question deleted successfully.",
+                    "success"
+                );
+            } catch (error) {
+                if (accessToken) {
+                    button.disabled = false;
+                    button.textContent = "Delete";
+                }
+
+                showMessage("historyMessage", error.message, "error");
+            }
+        }
+
+        $("refreshHistoryButton").addEventListener("click", loadHistory);
+
+        $("logoutButton").addEventListener("click", () => {
+            showLoggedOut();
+
+            showMessage(
+                "accountMessage",
+                "You have logged out.",
+                "success"
+            );
+
+            showMessage("askMessage", "");
+            showMessage("historyMessage", "");
+
+            $("loginPassword").value = "";
+            $("registerPassword").value = "";
+        });
+
+        async function initializeApp() {
+            try {
+                await apiRequest("/");
+            } catch (error) {
+                showMessage("accountMessage", error.message, "error");
+                return;
+            }
+
+            if (!accessToken) {
+                return;
+            }
+
+            try {
+                const data = await apiRequest("/auth/me");
+
+                currentUser = data.user || null;
+
+                setLoggedIn(currentUser);
+
+                await loadDocuments();
+                await loadHistory();
+            } catch (error) {
+                if (!accessToken) {
+                    return;
+                }
+
+                showLoggedOut();
+
+                showMessage(
+                    "accountMessage",
+                    "Your saved login could not be verified. Please log in again.",
+                    "error"
+                );
+            }
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>
