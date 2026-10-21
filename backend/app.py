@@ -4,8 +4,11 @@ import time
 import logging
 from pathlib import Path
 from functools import wraps
+from io import BytesIO
 
+import boto3
 import requests
+from botocore.exceptions import BotoCoreError, ClientError
 from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from dotenv import load_dotenv
@@ -18,18 +21,14 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
 
-# Load secrets from backend/.env only.
 load_dotenv(BASE_DIR / ".env")
 
 app = Flask(__name__)
-
-# Limit incoming requests to 1 MB.
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ai_study_assistant")
 
-# Only allow your configured frontend origins.
 allowed_origins = [
     origin.strip().rstrip("/")
     for origin in os.getenv(
@@ -67,6 +66,21 @@ OPENROUTER_MODEL = os.getenv(
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
+AWS_REGION = os.getenv(
+    "AWS_DEFAULT_REGION",
+    os.getenv("AWS_REGION", "eu-north-1")
+).strip()
+
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "").strip()
+
+# boto3 reads AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+# from the environment automatically.
+s3_client = (
+    boto3.client("s3", region_name=AWS_REGION)
+    if S3_BUCKET_NAME
+    else None
+)
+
 SUPABASE_TIMEOUT = 15
 OPENROUTER_TIMEOUT = 45
 
@@ -74,11 +88,7 @@ MAX_QUESTION_LENGTH = 5000
 MAX_DOCUMENT_LENGTH = 15000
 MAX_TOKENS = 2000
 
-# Your study documents are stored here:
-# project-root/study_material/
 ROOT_MATERIAL_DIR = PROJECT_DIR / "study_material"
-
-# Optional alternative location:
 BACKEND_MATERIAL_DIR = BASE_DIR / "study_material"
 
 
@@ -93,7 +103,6 @@ def add_security_headers(response):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Cache-Control"] = "no-store"
     response.headers.pop("Server", None)
-
     return response
 
 
@@ -110,11 +119,7 @@ def get_json_body():
         return None
 
     data = request.get_json(silent=True)
-
-    if not isinstance(data, dict):
-        return None
-
-    return data
+    return data if isinstance(data, dict) else None
 
 
 def configuration_is_valid():
@@ -125,11 +130,7 @@ def configuration_is_valid():
 
 
 def get_access_token():
-    """Read a Bearer access token from the request."""
-    authorization = request.headers.get(
-        "Authorization", ""
-    ).strip()
-
+    authorization = request.headers.get("Authorization", "").strip()
     parts = authorization.split()
 
     if len(parts) != 2 or parts[0].lower() != "bearer":
@@ -144,10 +145,6 @@ def get_access_token():
 
 
 def supabase_headers(access_token=None, prefer=None):
-    """
-    Use the Supabase public key and, for protected operations,
-    the logged-in user's access token.
-    """
     headers = {
         "apikey": SUPABASE_ANON_KEY,
         "Content-Type": "application/json",
@@ -166,7 +163,6 @@ def supabase_headers(access_token=None, prefer=None):
 
 
 def get_supabase_user(access_token):
-    """Validate the token with Supabase Auth."""
     if not configuration_is_valid():
         return None
 
@@ -193,30 +189,24 @@ def get_supabase_user(access_token):
 
 
 def require_auth(function):
-    """Require a valid Supabase session for protected routes."""
-
     @wraps(function)
     def wrapper(*args, **kwargs):
         if not configuration_is_valid():
             return error_response(
-                "Authentication service is not configured.",
-                503
+                "Authentication service is not configured.", 503
             )
 
         token = get_access_token()
 
         if not token:
-            return error_response(
-                "Please log in to continue.",
-                401
-            )
+            return error_response("Please log in to continue.", 401)
 
         user = get_supabase_user(token)
 
         if not user:
             return error_response(
                 "Your session is invalid or expired. Please log in again.",
-                401
+                401,
             )
 
         g.access_token = token
@@ -228,7 +218,6 @@ def require_auth(function):
 
 
 def supabase_auth_request(endpoint, payload):
-    """Send registration or login requests to Supabase Auth."""
     if not configuration_is_valid():
         return None, "Authentication service is not configured.", 503
 
@@ -259,9 +248,8 @@ def supabase_auth_request(endpoint, payload):
 
         logger.warning(
             "Supabase Auth request failed with status %s.",
-            response.status_code
+            response.status_code,
         )
-
         return None, "Authentication service request failed.", 502
 
     except requests.RequestException:
@@ -270,11 +258,41 @@ def supabase_auth_request(endpoint, payload):
 
 
 # ==================================================
-# 5. STUDY DOCUMENT HELPERS
+# 5. S3 AND LOCAL DOCUMENT HELPERS
 # ==================================================
 
+def s3_is_configured():
+    return bool(S3_BUCKET_NAME and s3_client is not None)
+
+
+def validate_document_name(document_name):
+    """Allow safe relative paths to .txt documents only."""
+    if not isinstance(document_name, str):
+        return None, "Invalid document name."
+
+    name = document_name.strip().replace("\\", "/")
+
+    if (
+        not name
+        or name.startswith("/")
+        or "\x00" in name
+        or not name.lower().endswith(".txt")
+    ):
+        return None, "Invalid document name."
+
+    parts = name.split("/")
+
+    if any(part in ("", ".", "..") for part in parts):
+        return None, "Invalid document location."
+
+    # Do not allow Windows drive paths or hidden path components.
+    if ":" in name or any(part.startswith(".") for part in parts):
+        return None, "Invalid document location."
+
+    return name, None
+
+
 def get_study_material_directory():
-    """Find the configured study_material directory."""
     if ROOT_MATERIAL_DIR.is_dir():
         return ROOT_MATERIAL_DIR
 
@@ -284,58 +302,135 @@ def get_study_material_directory():
     return ROOT_MATERIAL_DIR
 
 
-def read_study_document(document_name):
-    """
-    Read a .txt file inside study_material or a subject folder.
+def read_local_document(document_name):
+    name, error = validate_document_name(document_name)
 
-    Example:
-        Physics/newtons_first_law.txt
-
-    Prevent path traversal and access outside study_material.
-    """
-    if not isinstance(document_name, str):
-        return None, "Invalid document name."
-
-    document_name = document_name.strip().replace("\\", "/")
-
-    if (
-        not document_name
-        or document_name.startswith("/")
-        or "\x00" in document_name
-        or not document_name.lower().endswith(".txt")
-    ):
-        return None, "Invalid document name."
-
-    # Reject absolute paths and parent-directory traversal.
-    path_parts = document_name.split("/")
-
-    if any(part in ("", ".", "..") for part in path_parts):
-        return None, "Invalid document location."
+    if error:
+        return None, error
 
     folder = get_study_material_directory().resolve()
 
     try:
-        file_path = (folder / document_name).resolve()
+        file_path = (folder / name).resolve()
 
-        # Ensure the resolved file remains inside study_material.
         if not file_path.is_relative_to(folder):
             return None, "Invalid document location."
 
         if not file_path.is_file():
             return None, "Selected document was not found."
 
-        # Only read a limited amount of text.
         with file_path.open("r", encoding="utf-8") as file:
             content = file.read(MAX_DOCUMENT_LENGTH + 1)
 
-        if len(content) > MAX_DOCUMENT_LENGTH:
-            content = content[:MAX_DOCUMENT_LENGTH]
-
-        return content, None
+        return content[:MAX_DOCUMENT_LENGTH], None
 
     except (OSError, UnicodeError, ValueError):
-        logger.warning("Could not read a study document.")
+        logger.warning("Could not read a local study document.")
         return None, "Could not read the selected document."
+
+
+def read_study_document(document_name):
+    """
+    Read from S3 when configured; otherwise use local study_material.
+    The S3 object key is the document's relative name.
+    """
+    name, error = validate_document_name(document_name)
+
+    if error:
+        return None, error
+
+    if not s3_is_configured():
+        return read_local_document(name)
+
+    try:
+        result = s3_client.get_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=name,
+        )
+
+        body = result["Body"]
+
+        try:
+            # Read no more than the configured limit plus one byte.
+            raw_content = body.read(MAX_DOCUMENT_LENGTH + 1)
+        finally:
+            body.close()
+
+        content = raw_content.decode("utf-8")
+        return content[:MAX_DOCUMENT_LENGTH], None
+
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code", "")
+
+        if code in ("NoSuchKey", "404", "NotFound"):
+            return None, "Selected document was not found."
+
+        if code in ("AccessDenied", "403"):
+            logger.warning("S3 denied access to a study document.")
+            return None, "The document storage service denied access."
+
+        logger.warning("S3 document read failed.")
+        return None, "Could not read the selected document."
+
+    except (BotoCoreError, OSError, UnicodeError, KeyError, ValueError):
+        logger.warning("Could not process an S3 study document.")
+        return None, "Could not read the selected document."
+
+
+def list_local_documents():
+    folder = get_study_material_directory()
+
+    if not folder.is_dir():
+        return []
+
+    resolved_folder = folder.resolve()
+    names = []
+
+    for path in folder.rglob("*"):
+        try:
+            if not path.is_file() or path.suffix.lower() != ".txt":
+                continue
+
+            resolved = path.resolve()
+
+            if not resolved.is_relative_to(resolved_folder):
+                continue
+
+            names.append(resolved.relative_to(resolved_folder).as_posix())
+
+        except (OSError, ValueError):
+            continue
+
+    return sorted(set(names))
+
+
+def list_s3_documents():
+    if not s3_is_configured():
+        return list_local_documents()
+
+    names = []
+
+    try:
+        paginator = s3_client.get_paginator("list_objects_v2")
+
+        for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+            for item in page.get("Contents", []):
+                key = item.get("Key", "")
+
+                if not key.lower().endswith(".txt"):
+                    continue
+
+                # Exclude unsafe keys from the list.
+                valid_name, error = validate_document_name(key)
+
+                if not error and valid_name == key:
+                    names.append(key)
+
+        return sorted(set(names))
+
+    except (ClientError, BotoCoreError):
+        logger.warning("Could not list S3 study documents.")
+        raise
 
 
 # ==================================================
@@ -343,16 +438,12 @@ def read_study_document(document_name):
 # ==================================================
 
 def save_history(question, answer):
-    """
-    Save a question for the authenticated user.
-    Database Row Level Security must also be enabled.
-    """
     try:
         response = requests.post(
             f"{SUPABASE_URL}/rest/v1/study_history",
             headers=supabase_headers(
                 g.access_token,
-                prefer="return=minimal"
+                prefer="return=minimal",
             ),
             json={
                 "user_id": g.current_user["id"],
@@ -365,7 +456,7 @@ def save_history(question, answer):
         if not response.ok:
             logger.warning(
                 "History save failed with status %s.",
-                response.status_code
+                response.status_code,
             )
 
     except requests.RequestException:
@@ -416,10 +507,7 @@ def register():
 
     result, error, status = supabase_auth_request(
         "signup",
-        {
-            "email": email,
-            "password": password,
-        }
+        {"email": email, "password": password},
     )
 
     if error:
@@ -471,10 +559,7 @@ def login():
 
     result, error, status = supabase_auth_request(
         "token?grant_type=password",
-        {
-            "email": email,
-            "password": password,
-        }
+        {"email": email, "password": password},
     )
 
     if error:
@@ -485,7 +570,7 @@ def login():
     if not access_token:
         return error_response(
             "Login did not return a session. Check your email confirmation settings.",
-            401
+            401,
         )
 
     return jsonify({
@@ -520,66 +605,108 @@ def current_user():
 @app.route("/documents", methods=["GET"])
 @require_auth
 def documents():
-    """
-    List .txt files recursively.
-
-    Example result:
-        Physics/newtons_first_law.txt
-    """
-    folder = get_study_material_directory()
-
     try:
-        if not folder.is_dir():
-            return jsonify({"documents": []})
-
-        resolved_folder = folder.resolve()
-        document_names = []
-
-        for file_path in folder.rglob("*"):
-            try:
-                if not file_path.is_file():
-                    continue
-
-                # Only list text documents.
-                if file_path.suffix.lower() != ".txt":
-                    continue
-
-                resolved_path = file_path.resolve()
-
-                # Block symbolic links pointing outside the folder.
-                if not resolved_path.is_relative_to(resolved_folder):
-                    continue
-
-                relative_name = resolved_path.relative_to(
-                    resolved_folder
-                ).as_posix()
-
-                document_names.append(relative_name)
-
-            except (OSError, ValueError):
-                continue
+        names = list_s3_documents()
 
         return jsonify({
-            "documents": [
-                {"name": name}
-                for name in sorted(set(document_names))
-            ]
+            "documents": [{"name": name} for name in names]
         })
 
-    except OSError:
-        logger.warning("Could not list study documents.")
-        return error_response("Could not load study documents.", 500)
+    except (ClientError, BotoCoreError):
+        return error_response("Could not load study documents from S3.", 502)
 
 
 # ==================================================
-# 12. ASK AI
+# 12. UPLOAD A STUDY DOCUMENT
+# ==================================================
+
+@app.route("/documents", methods=["POST"])
+@require_auth
+def upload_document():
+    if not s3_is_configured():
+        return error_response(
+            "S3 storage is not configured. Upload is unavailable.",
+            503,
+        )
+
+    if "file" not in request.files:
+        return error_response("Choose a .txt file to upload.")
+
+    uploaded_file = request.files["file"]
+
+    if not uploaded_file.filename:
+        return error_response("Choose a file to upload.")
+
+    # The browser must send a .txt file.
+    filename = uploaded_file.filename.replace("\\", "/").split("/")[-1]
+
+    if (
+        not filename
+        or filename in (".", "..")
+        or not filename.lower().endswith(".txt")
+        or "\x00" in filename
+        or ":" in filename
+        or filename.startswith(".")
+    ):
+        return error_response("Only valid .txt files can be uploaded.")
+
+    # Optional subject folder, e.g. Biology or Physics.
+    subject = request.form.get("subject", "").strip()
+
+    if subject:
+        subject = subject.replace("\\", "/")
+
+        if (
+            "/" in subject
+            or subject in (".", "..")
+            or ":" in subject
+            or "\x00" in subject
+            or subject.startswith(".")
+        ):
+            return error_response("Invalid subject folder name.")
+
+        object_key = f"{subject}/{filename}"
+    else:
+        object_key = filename
+
+    try:
+        # Enforce a size limit while reading the incoming upload.
+        content = uploaded_file.stream.read(1024 * 1024 + 1)
+
+        if len(content) > 1024 * 1024:
+            return error_response("File must be no larger than 1 MB.", 413)
+
+        # Only accept valid UTF-8 text.
+        content.decode("utf-8")
+
+        s3_client.put_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=object_key,
+            Body=content,
+            ContentType="text/plain; charset=utf-8",
+        )
+
+        return jsonify({
+            "message": "Document uploaded successfully.",
+            "document": {"name": object_key},
+        }), 201
+
+    except UnicodeDecodeError:
+        return error_response("The file must contain valid UTF-8 text.")
+
+    except (ClientError, BotoCoreError):
+        logger.warning("S3 document upload failed.")
+        return error_response("Could not upload the document to S3.", 502)
+
+
+# ==================================================
+# 13. ASK AI
 # ==================================================
 
 @app.route("/ask", methods=["POST"])
 @require_auth
 def ask():
     total_start_time = time.perf_counter()
-
     data = get_json_body()
 
     if data is None:
@@ -600,7 +727,6 @@ def ask():
             f"Question must not exceed {MAX_QUESTION_LENGTH} characters."
         )
 
-    # Accept all field names supported by your frontend.
     selected_document = (
         data.get("document")
         or data.get("document_name")
@@ -624,10 +750,9 @@ def ask():
 
     if not OPENROUTER_API_KEY:
         logger.error("OPENROUTER_API_KEY is not configured.")
-
         return error_response(
             "AI service is not configured. Please contact the administrator.",
-            503
+            503,
         )
 
     if document_content:
@@ -649,14 +774,12 @@ def ask():
             "----- END OF STUDY MATERIAL -----\n\n"
             f"Student's question:\n{question}"
         )
-
     else:
         system_message = (
             "You are a helpful AI study assistant. "
             "Explain answers in simple, clear English. "
             "Use headings and examples when useful."
         )
-
         user_message = question
 
     headers = {
@@ -670,14 +793,8 @@ def ask():
         "model": OPENROUTER_MODEL,
         "max_tokens": MAX_TOKENS,
         "messages": [
-            {
-                "role": "system",
-                "content": system_message,
-            },
-            {
-                "role": "user",
-                "content": user_message,
-            },
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
         ],
     }
 
@@ -691,25 +808,24 @@ def ask():
 
         if response.status_code == 429:
             return error_response(
-                "The AI service is busy. Please wait and try again.",
-                429
+                "The AI service is busy. Please wait and try again.", 429
             )
 
         if not response.ok:
             logger.warning(
                 "OpenRouter returned HTTP status %s.",
-                response.status_code
+                response.status_code,
             )
 
             if response.status_code in (401, 403):
                 return error_response(
                     "The AI service rejected its credentials. Check the backend configuration.",
-                    502
+                    502,
                 )
 
             return error_response(
                 "The AI service could not answer right now. Please try again.",
-                502
+                502,
             )
 
         result = response.json()
@@ -717,8 +833,7 @@ def ask():
 
         if not choices:
             return error_response(
-                "The AI service returned no answer. Please try again.",
-                502
+                "The AI service returned no answer. Please try again.", 502
             )
 
         answer = choices[0].get("message", {}).get("content")
@@ -726,52 +841,39 @@ def ask():
         if not isinstance(answer, str) or not answer.strip():
             return error_response(
                 "The AI service returned an empty answer. Please try again.",
-                502
+                502,
             )
 
         answer = answer.strip()
-
-        # Save the question against the authenticated user.
         save_history(question, answer)
 
         elapsed = time.perf_counter() - total_start_time
+        logger.info("AI question completed in %.2f seconds.", elapsed)
 
-        logger.info(
-            "AI question completed in %.2f seconds.",
-            elapsed
-        )
-
-        return jsonify({
-            "answer": answer
-        })
+        return jsonify({"answer": answer})
 
     except requests.Timeout:
         logger.warning("OpenRouter request timed out.")
-
         return error_response(
             "The AI service took too long to respond. Please try again.",
-            504
+            504,
         )
 
     except requests.RequestException:
         logger.warning("Could not connect to OpenRouter.")
-
         return error_response(
-            "Could not connect to the AI service. Please try again.",
-            502
+            "Could not connect to the AI service. Please try again.", 502
         )
 
     except (ValueError, KeyError, TypeError):
         logger.warning("Could not process the AI service response.")
-
         return error_response(
-            "The AI service returned an invalid response.",
-            502
+            "The AI service returned an invalid response.", 502
         )
 
 
 # ==================================================
-# 13. GET SAVED HISTORY
+# 14. GET SAVED HISTORY
 # ==================================================
 
 @app.route("/history", methods=["GET"])
@@ -793,43 +895,31 @@ def history():
         if not response.ok:
             logger.warning(
                 "History retrieval failed with status %s.",
-                response.status_code
+                response.status_code,
             )
-
-            return error_response(
-                "Could not load saved history.",
-                502
-            )
+            return error_response("Could not load saved history.", 502)
 
         records = response.json()
 
         if not isinstance(records, list):
             return error_response(
-                "History service returned an invalid response.",
-                502
+                "History service returned an invalid response.", 502
             )
 
-        return jsonify({
-            "history": records
-        })
+        return jsonify({"history": records})
 
     except requests.RequestException:
-        logger.warning("Could not connect to retrieve history.")
-
-        return error_response(
-            "Could not load saved history.",
-            502
-        )
+        logger.warning("Could not connect to retrieve question history.")
+        return error_response("Could not load saved history.", 502)
 
     except ValueError:
         return error_response(
-            "History service returned an invalid response.",
-            502
+            "History service returned an invalid response.", 502
         )
 
 
 # ==================================================
-# 14. DELETE ONE HISTORY ITEM
+# 15. DELETE ONE HISTORY ITEM
 # ==================================================
 
 @app.route("/history/<int:question_id>", methods=["DELETE"])
@@ -843,7 +933,7 @@ def delete_history_item(question_id):
             f"{SUPABASE_URL}/rest/v1/study_history",
             headers=supabase_headers(
                 g.access_token,
-                prefer="return=representation"
+                prefer="return=representation",
             ),
             params={
                 "id": f"eq.{question_id}",
@@ -856,47 +946,35 @@ def delete_history_item(question_id):
         if not response.ok:
             logger.warning(
                 "History deletion failed with status %s.",
-                response.status_code
+                response.status_code,
             )
-
-            return error_response(
-                "Could not delete this history item.",
-                502
-            )
+            return error_response("Could not delete this history item.", 502)
 
         deleted_records = response.json()
 
         if not deleted_records:
             return error_response("Question not found.", 404)
 
-        return jsonify({
-            "message": "Question deleted successfully."
-        })
+        return jsonify({"message": "Question deleted successfully."})
 
     except requests.RequestException:
-        logger.warning("Could not connect to delete history.")
-
-        return error_response(
-            "Could not delete this history item.",
-            502
-        )
+        logger.warning("Could not connect to delete question history.")
+        return error_response("Could not delete this history item.", 502)
 
     except ValueError:
         return error_response(
-            "History service returned an invalid response.",
-            502
+            "History service returned an invalid response.", 502
         )
 
 
 # ==================================================
-# 15. SAFE ERROR HANDLERS
+# 16. SAFE ERROR HANDLERS
 # ==================================================
 
 @app.errorhandler(413)
 def request_too_large(_error):
     return error_response(
-        "Request is too large. Please reduce its size.",
-        413
+        "Request is too large. Please reduce its size.", 413
     )
 
 
@@ -912,24 +990,18 @@ def method_not_allowed(_error):
 
 @app.errorhandler(Exception)
 def unexpected_error(error):
-    # Do not return tracebacks or internal details to the browser.
     logger.error(
         "Unexpected application error: %s",
-        type(error).__name__
+        type(error).__name__,
     )
-
-    return error_response(
-        "An unexpected server error occurred.",
-        500
-    )
+    return error_response("An unexpected server error occurred.", 500)
 
 
 # ==================================================
-# 16. START SERVER
+# 17. START SERVER
 # ==================================================
 
 if __name__ == "__main__":
-    # Debug mode stays disabled.
     app.run(
         host="127.0.0.1",
         port=int(os.getenv("PORT", "5000")),
