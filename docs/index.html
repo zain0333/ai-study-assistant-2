@@ -1,4 +1,4 @@
-
+﻿
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -399,6 +399,33 @@
                     class="secondary"
                 >Refresh Documents</button>
 
+                <h3>Upload Study Document</h3>
+                <label for="uploadSubject">Subject (optional)</label>
+                <input
+                    id="uploadSubject"
+                    type="text"
+                    maxlength="50"
+                    placeholder="For example: Biology"
+                >
+
+                <label for="documentFile">Choose a .txt file (maximum 1 MB)</label>
+                <input
+                    id="documentFile"
+                    type="file"
+                    accept=".txt,text/plain"
+                >
+
+                <button id="uploadDocumentButton" type="button">
+                    Upload Document
+                </button>
+
+                <div
+                    id="uploadMessage"
+                    class="message"
+                    role="status"
+                    aria-live="polite"
+                ></div>
+
                 <label for="question">Your question</label>
                 <textarea
                     id="question"
@@ -463,7 +490,7 @@
         </section>
     </main>
 
-    <footer>AI Study Assistant 2.0 · Learn one question at a time</footer>
+    <footer>AI Study Assistant 2.0 Â· Learn one question at a time</footer>
 
     <script>
         const API_URL = "https://ai-study-assistant-2-sggs.onrender.com";
@@ -746,7 +773,7 @@
                     const option = document.createElement("option");
 
                     option.value = item.path;
-                    option.textContent = `${item.subject} — ${item.name}`;
+                    option.textContent = `${item.subject} â€” ${item.name}`;
 
                     select.appendChild(option);
                 });
@@ -775,6 +802,81 @@
         }
 
         $("refreshDocumentsButton").addEventListener("click", loadDocuments);
+         
+         
+        // Upload a study document to the backend.
+        $("uploadDocumentButton").addEventListener("click", async () => {
+            const fileInput = $("documentFile");
+            const subject = $("uploadSubject").value.trim();
+            const file = fileInput.files[0];
+
+            if (!accessToken) {
+                showMessage("uploadMessage", "Please log in first.", "error");
+                return;
+            }
+
+            if (!file) {
+                showMessage("uploadMessage", "Please choose a .txt file.", "error");
+                return;
+            }
+
+            if (!file.name.toLowerCase().endsWith(".txt")) {
+                showMessage("uploadMessage", "Only .txt files are allowed.", "error");
+                return;
+            }
+
+            if (file.size > 1024 * 1024) {
+                showMessage("uploadMessage", "The file must be no larger than 1 MB.", "error");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            if (subject) {
+                formData.append("subject", subject);
+            }
+
+            setBusy("uploadDocumentButton", true, "Uploading...");
+            showMessage("uploadMessage", "Uploading your document...");
+
+            try {
+                const response = await fetch(API_URL + "/documents", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + accessToken
+                    },
+                    body: formData
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (!response.ok) {
+                    throw new Error(
+                        data.error || data.message || "Upload failed."
+                    );
+                }
+
+                await loadDocuments();
+
+                if (data.document && data.document.name) {
+                    $("documentSelect").value = data.document.name;
+                }
+
+                fileInput.value = "";
+
+                showMessage(
+                    "uploadMessage",
+                    data.message || "Document uploaded successfully.",
+                    "success"
+                );
+            } catch (error) {
+                showMessage("uploadMessage", error.message, "error");
+            } finally {
+                setBusy("uploadDocumentButton", false);
+            }
+        });
+
 
         $("askButton").addEventListener("click", async () => {
             const question = $("question").value.trim();
@@ -1049,3 +1151,4 @@
     </script>
 </body>
 </html>
+
