@@ -429,7 +429,13 @@ def submit_quiz_attempt(quiz_id):
             json={
                 "quiz_id": quiz_id,
                 "user_id": g.current_user["id"],
-                "submitted_answers": answers,
+           "submitted_answers": [
+                   {
+                      "question_id": question_id,
+                      "selected_answer": selected_answer,
+                   }
+               for question_id, selected_answer in answers.items()
+           ],
                 "score": score,
                 "total_questions": len(questions),
             },
