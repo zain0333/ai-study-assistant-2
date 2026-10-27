@@ -1,4 +1,4 @@
-﻿
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -457,6 +457,36 @@
             </section>
 
             <section class="card">
+            <section class="card" id="quizSection">
+                <h2>Study Quizzes</h2>
+                <p class="muted">Create a multiple-choice quiz from a study document.</p>
+                <label for="quizTitle">Quiz title</label>
+                <input id="quizTitle" type="text" value="Study Quiz" maxlength="100">
+                <label for="quizQuestionCount">Number of questions</label>
+                <select id="quizQuestionCount">
+                    <option value="3">3 questions</option>
+                    <option value="5" selected>5 questions</option>
+                    <option value="10">10 questions</option>
+                </select>
+                <button id="generateQuizButton" type="button">Generate Quiz</button>
+                <div id="quizMessage" class="message" role="status" aria-live="polite"></div>
+                <hr>
+                <h3>Saved Quizzes</h3>
+                <label for="savedQuizSelect">Choose a saved quiz</label>
+                <select id="savedQuizSelect"><option value="">No quiz selected</option></select>
+                <button id="loadQuizButton" type="button" class="secondary">Load Selected Quiz</button>
+                <div id="activeQuiz" class="hidden">
+                    <h3 id="activeQuizTitle"></h3>
+                    <div id="quizQuestions"></div>
+                    <button id="submitQuizButton" type="button">Submit Answers</button>
+                </div>
+                <section id="quizResult" class="hidden" style="margin-top:20px">
+                    <h3>Quiz Result</h3>
+                    <p id="quizScore"></p>
+                    <div id="quizReview"></div>
+                </section>
+            </section>
+
                 <h2>Question History</h2>
                 <p id="historyDescription" class="muted">
                     Your saved questions and answers will appear here.
@@ -704,6 +734,7 @@
 
                 await loadDocuments();
                 await loadHistory();
+                await loadSavedQuizzes();
             } catch (error) {
                 showMessage("accountMessage", error.message, "error");
             } finally {
@@ -947,6 +978,237 @@
             showMessage("askMessage", "");
         });
 
+        let activeQuizData = null;
+        let quizSubmitted = false;
+
+        async function loadSavedQuizzes() {
+            const select = $("savedQuizSelect");
+
+            try {
+                const data = await apiRequest("/quizzes");
+                const quizzes = Array.isArray(data.quizzes) ? data.quizzes : [];
+                const previous = select.value;
+
+                select.replaceChildren();
+
+                const first = document.createElement("option");
+                first.value = "";
+                first.textContent = quizzes.length ? "Choose a saved quiz" : "No saved quizzes yet";
+                select.appendChild(first);
+
+                quizzes.forEach((quiz) => {
+                    const option = document.createElement("option");
+                    option.value = quiz.id;
+                    option.textContent = quiz.title || "Study Quiz";
+                    select.appendChild(option);
+                });
+
+                if (quizzes.some((quiz) => quiz.id === previous)) {
+                    select.value = previous;
+                }
+            } catch (error) {
+                showMessage("quizMessage", error.message, "error");
+            }
+        }
+
+        function renderActiveQuiz(quiz) {
+            activeQuizData = quiz;
+            quizSubmitted = false;
+
+            $("activeQuizTitle").textContent = quiz.title || "Study Quiz";
+            $("quizQuestions").replaceChildren();
+            $("quizReview").replaceChildren();
+            $("quizScore").textContent = "";
+            $("quizResult").classList.add("hidden");
+
+            const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+
+            questions.forEach((question, index) => {
+                const group = document.createElement("fieldset");
+                group.style.marginTop = "18px";
+
+                const legend = document.createElement("legend");
+                legend.textContent = `${index + 1}. ${question.question || "Question"}`;
+                group.appendChild(legend);
+
+                ["A", "B", "C", "D"].forEach((letter) => {
+                    const label = document.createElement("label");
+                    label.style.display = "block";
+                    label.style.marginTop = "8px";
+
+                    const radio = document.createElement("input");
+                    radio.type = "radio";
+                    radio.name = `quiz-answer-${question.id}`;
+                    radio.value = letter;
+                    radio.style.marginRight = "8px";
+
+                    const options = question.options || {};
+                    label.appendChild(radio);
+                    label.appendChild(
+                        document.createTextNode(`${letter}. ${options[letter] || ""}`)
+                    );
+                    group.appendChild(label);
+                });
+
+                $("quizQuestions").appendChild(group);
+            });
+
+            $("activeQuiz").classList.remove("hidden");
+            $("submitQuizButton").disabled = false;
+        }
+
+        $("generateQuizButton").addEventListener("click", async () => {
+            const documentName = $("documentSelect").value;
+            const title = $("quizTitle").value.trim();
+            const count = Number($("quizQuestionCount").value);
+
+            if (!documentName) {
+                showMessage("quizMessage", "Please select a study document in the AI Assistant section first.", "error");
+                return;
+            }
+
+            if (!title) {
+                showMessage("quizMessage", "Please enter a quiz title.", "error");
+                return;
+            }
+
+            setBusy("generateQuizButton", true, "Generating...");
+            showMessage("quizMessage", "Generating your quiz. This may take a little time...");
+
+            try {
+                const data = await apiRequest("/quizzes/generate", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        document_name: documentName,
+                        title: title,
+                        count: count
+                    })
+                });
+
+                if (!data.quiz || !data.quiz.id || !Array.isArray(data.quiz.questions)) {
+                    throw new Error("The backend returned an invalid quiz.");
+                }
+
+                $("savedQuizSelect").value = "";
+                renderActiveQuiz(data.quiz);
+                showMessage("quizMessage", "Quiz generated and saved successfully.", "success");
+                await loadSavedQuizzes();
+            } catch (error) {
+                showMessage("quizMessage", error.message, "error");
+            } finally {
+                setBusy("generateQuizButton", false);
+            }
+        });
+
+        $("loadQuizButton").addEventListener("click", async () => {
+            const quizId = $("savedQuizSelect").value;
+
+            if (!quizId) {
+                showMessage("quizMessage", "Please choose a saved quiz first.", "error");
+                return;
+            }
+
+            setBusy("loadQuizButton", true, "Loading...");
+            try {
+                const data = await apiRequest(`/quizzes/${encodeURIComponent(quizId)}`);
+
+                if (!data.quiz || !Array.isArray(data.quiz.questions)) {
+                    throw new Error("The selected quiz could not be read.");
+                }
+
+                renderActiveQuiz(data.quiz);
+                showMessage("quizMessage", "Saved quiz loaded. Answer every question and submit when ready.", "success");
+            } catch (error) {
+                showMessage("quizMessage", error.message, "error");
+            } finally {
+                setBusy("loadQuizButton", false);
+            }
+        });
+
+        $("submitQuizButton").addEventListener("click", async () => {
+            if (!activeQuizData || quizSubmitted) {
+                return;
+            }
+
+            const answers = {};
+            const questions = activeQuizData.questions || [];
+
+            for (const question of questions) {
+                const selected = document.querySelector(
+                    `input[name="quiz-answer-${question.id}"]:checked`
+                );
+
+                if (!selected) {
+                    showMessage("quizMessage", "Please answer every question before submitting.", "error");
+                    return;
+                }
+
+                answers[question.id] = selected.value;
+            }
+
+            setBusy("submitQuizButton", true, "Checking...");
+            try {
+                const data = await apiRequest(
+                    `/quizzes/${encodeURIComponent(activeQuizData.id)}/attempt`,
+                    {
+                        method: "POST",
+                        body: JSON.stringify({ answers })
+                    }
+                );
+
+                const result = data.result;
+                if (!result || !result.answers) {
+                    throw new Error("The backend returned an invalid quiz result.");
+                }
+
+                quizSubmitted = true;
+                $("quizScore").textContent =
+                    `Score: ${result.score} / ${result.total_questions} (${result.percentage}%)`;
+
+                const review = $("quizReview");
+                review.replaceChildren();
+
+                questions.forEach((question, index) => {
+                    const item = document.createElement("div");
+                    item.style.marginTop = "12px";
+
+                    const detail = result.answers[question.id];
+                    const selected = detail ? detail.selected_answer : "";
+                    const correct = detail ? detail.correct_answer : "";
+                    const options = question.options || {};
+
+                    const heading = document.createElement("p");
+                    heading.textContent = `${index + 1}. ${question.question}`;
+                    item.appendChild(heading);
+
+                    const answer = document.createElement("p");
+                    answer.textContent = `Your answer: ${selected}. ${options[selected] || ""} — ${
+                        detail && detail.correct ? "Correct" : "Incorrect"
+                    }`;
+                    item.appendChild(answer);
+
+                    if (!detail || !detail.correct) {
+                        const correction = document.createElement("p");
+                        correction.textContent =
+                            `Correct answer: ${correct}. ${options[correct] || ""}`;
+                        item.appendChild(correction);
+                    }
+
+                    review.appendChild(item);
+                });
+
+                $("quizResult").classList.remove("hidden");
+                $("submitQuizButton").disabled = true;
+                showMessage("quizMessage", "Your result has been saved.", "success");
+            } catch (error) {
+                showMessage("quizMessage", error.message, "error");
+            } finally {
+                setBusy("submitQuizButton", false);
+                if (quizSubmitted) {
+                    $("submitQuizButton").disabled = true;
+                }
+            }
+        });
         async function loadHistory() {
             setBusy("refreshHistoryButton", true, "Refreshing...");
             showMessage("historyMessage", "Loading saved history...");
@@ -1132,6 +1394,7 @@
 
                 await loadDocuments();
                 await loadHistory();
+                await loadSavedQuizzes();
             } catch (error) {
                 if (!accessToken) {
                     return;

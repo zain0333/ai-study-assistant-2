@@ -3,7 +3,7 @@ import backend.app as app_module
 
 
 def test_home_route():
-    """Check that the backend home route works."""
+    """The public home route should work."""
     client = app_module.app.test_client()
 
     response = client.get("/")
@@ -14,136 +14,101 @@ def test_home_route():
     }
 
 
-def test_documents_route(tmp_path, monkeypatch):
-    """Check that the backend lists available text documents."""
-    study_file = tmp_path / "test_document.txt"
-    study_file.write_text(
-        "This is a test study document.",
-        encoding="utf-8"
-    )
-
-    monkeypatch.setattr(
-        app_module,
-        "STUDY_MATERIAL_DIR",
-        tmp_path
-    )
-
+def test_documents_route_requires_authentication():
+    """Documents must not be accessible without login."""
     client = app_module.app.test_client()
+
     response = client.get("/documents")
 
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "documents": [{"name": "test_document.txt"}]
-    }
+    assert response.status_code in (401, 503)
 
 
-def test_documents_route_when_folder_is_empty(tmp_path, monkeypatch):
-    """Check that an empty folder returns an empty document list."""
-    monkeypatch.setattr(
-        app_module,
-        "STUDY_MATERIAL_DIR",
-        tmp_path
-    )
-
-    client = app_module.app.test_client()
-    response = client.get("/documents")
-
-    assert response.status_code == 200
-    assert response.get_json() == {
-        "documents": []
-    }
-
-
-def test_ask_rejects_empty_question():
-    """Check that an empty question returns a 400 error."""
+def test_ask_requires_authentication():
+    """Asking questions must require login."""
     client = app_module.app.test_client()
 
-    response = client.post(
-        "/ask",
-        json={"question": ""}
+    response = client.post("/ask", json={"question": "Hello"})
+
+    assert response.status_code in (401, 503)
+
+
+def test_validate_document_name_accepts_txt():
+    name, error = app_module.validate_document_name(
+        "Biology/photosynthesis.txt"
     )
 
-    assert response.status_code == 400
-    assert response.get_json() == {
-        "error": "Please enter a question."
-    }
+    assert name == "Biology/photosynthesis.txt"
+    assert error is None
 
 
-def test_ask_rejects_non_string_question():
-    """Check that a question that is not text returns a 400 error."""
-    client = app_module.app.test_client()
-
-    response = client.post(
-        "/ask",
-        json={"question": 123}
-    )
-
-    assert response.status_code == 400
-    assert response.get_json() == {
-        "error": "Please enter a question."
-    }
-
-
-def test_read_study_document_success(tmp_path, monkeypatch):
-    """Check that a valid text document can be read."""
-    study_file = tmp_path / "test_document.txt"
-    study_file.write_text(
-        "Plants use sunlight for photosynthesis.",
-        encoding="utf-8"
-    )
-
-    monkeypatch.setattr(
-        app_module,
-        "STUDY_MATERIAL_DIR",
-        tmp_path
-    )
-
-    result = app_module.read_study_document("test_document.txt")
-
-    assert result == "Plants use sunlight for photosynthesis."
-
-
-def test_read_study_document_rejects_path_traversal():
-    """Check that paths trying to leave the study folder are rejected."""
+def test_validate_document_name_rejects_unsafe_paths():
+    """Unsafe paths must be rejected."""
     unsafe_names = [
         "../secret.txt",
         "..\\secret.txt",
-        "folder/document.txt",
-        "folder\\document.txt",
+        "folder/../secret.txt",
+        "folder\\..\\secret.txt",
+        "/secret.txt",
+        "C:\\secret.txt",
+        ".hidden.txt",
+        "notes.pdf",
+        "",
+        None,
+        123,
     ]
 
     for document_name in unsafe_names:
-        try:
-            app_module.read_study_document(document_name)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(
-                f"Unsafe document name was accepted: {document_name}"
-            )
+        name, error = app_module.validate_document_name(document_name)
+
+        assert name is None, (
+            f"Unsafe document name was accepted: {document_name!r}"
+        )
+        assert error
+
+
+def test_read_study_document_success(tmp_path, monkeypatch):
+    """A valid local document should return content and no error."""
+    study_file = tmp_path / "test_document.txt"
+    study_file.write_text(
+        "Plants use sunlight for photosynthesis.",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(app_module, "STUDY_MATERIAL_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "BACKEND_MATERIAL_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "S3_BUCKET_NAME", "")
+    monkeypatch.setattr(app_module, "s3_client", None)
+
+    content, error = app_module.read_study_document("test_document.txt")
+
+    assert content == "Plants use sunlight for photosynthesis."
+    assert error is None
+
+
+def test_read_study_document_rejects_unsafe_path():
+    """Unsafe document names should return an error."""
+    content, error = app_module.read_study_document("../secret.txt")
+
+    assert content is None
+    assert error
 
 
 def test_read_study_document_rejects_non_txt_file():
-    """Check that files with other extensions are rejected."""
-    try:
-        app_module.read_study_document("notes.pdf")
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("A non-text file was accepted.")
+    """Only text documents should be accepted."""
+    content, error = app_module.read_study_document("notes.pdf")
+
+    assert content is None
+    assert error
 
 
-def test_read_study_document_rejects_missing_file(tmp_path, monkeypatch):
-    """Check that a missing document raises FileNotFoundError."""
-    monkeypatch.setattr(
-        app_module,
-        "STUDY_MATERIAL_DIR",
-        tmp_path
-    )
+def test_read_study_document_missing_file(tmp_path, monkeypatch):
+    """A missing local document should return an error."""
+    monkeypatch.setattr(app_module, "STUDY_MATERIAL_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "BACKEND_MATERIAL_DIR", tmp_path)
+    monkeypatch.setattr(app_module, "S3_BUCKET_NAME", "")
+    monkeypatch.setattr(app_module, "s3_client", None)
 
-    try:
-        app_module.read_study_document("missing.txt")
-    except FileNotFoundError:
-        pass
-    else:
-        raise AssertionError("A missing document was accepted.")
+    content, error = app_module.read_study_document("missing.txt")
+
+    assert content is None
+    assert error

@@ -89,6 +89,7 @@ MAX_DOCUMENT_LENGTH = 15000
 MAX_TOKENS = 2000
 
 ROOT_MATERIAL_DIR = PROJECT_DIR / "study_material"
+STUDY_MATERIAL_DIR = ROOT_MATERIAL_DIR
 BACKEND_MATERIAL_DIR = BASE_DIR / "study_material"
 
 
@@ -293,14 +294,13 @@ def validate_document_name(document_name):
 
 
 def get_study_material_directory():
-    if ROOT_MATERIAL_DIR.is_dir():
-        return ROOT_MATERIAL_DIR
+    if STUDY_MATERIAL_DIR.is_dir():
+        return STUDY_MATERIAL_DIR
 
     if BACKEND_MATERIAL_DIR.is_dir():
         return BACKEND_MATERIAL_DIR
 
-    return ROOT_MATERIAL_DIR
-
+    return STUDY_MATERIAL_DIR
 
 def read_local_document(document_name):
     name, error = validate_document_name(document_name)
@@ -988,13 +988,55 @@ def method_not_allowed(_error):
     return error_response("Method not allowed.", 405)
 
 
+
 @app.errorhandler(Exception)
 def unexpected_error(error):
-    logger.error(
-        "Unexpected application error: %s",
-        type(error).__name__,
-    )
+    logger.exception("Unexpected application error")
     return error_response("An unexpected server error occurred.", 500)
+
+
+# ==================================================
+# QUIZ ROUTES
+# ==================================================
+
+try:
+    from .quiz_routes import quiz_bp
+except ImportError:
+    from quiz_routes import quiz_bp
+
+app.config["QUIZ_SUPABASE_ANON_KEY"] = SUPABASE_ANON_KEY
+
+app.config["QUIZ_CONFIG"] = {
+    "SUPABASE_URL": SUPABASE_URL,
+    "OPENROUTER_API_KEY": OPENROUTER_API_KEY,
+    "OPENROUTER_MODEL": OPENROUTER_MODEL,
+    "OPENROUTER_URL": OPENROUTER_URL,
+}
+
+app.config["QUIZ_READ_DOCUMENT"] = read_study_document
+
+# Apply the same login protection used by the existing app.
+@quiz_bp.before_request
+def authenticate_quiz_request():
+    if not configuration_is_valid():
+        return error_response(
+            "Authentication service is not configured.", 503
+        )
+
+    token = get_access_token()
+    if not token:
+        return error_response("Please log in to continue.", 401)
+
+    user = get_supabase_user(token)
+    if not user:
+        return error_response(
+            "Your session is invalid or expired. Please log in again.", 401
+        )
+
+    g.access_token = token
+    g.current_user = user
+
+app.register_blueprint(quiz_bp)
 
 
 # ==================================================
