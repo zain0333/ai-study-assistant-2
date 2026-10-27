@@ -1018,6 +1018,9 @@ app.config["QUIZ_READ_DOCUMENT"] = read_study_document
 # Apply the same login protection used by the existing app.
 @quiz_bp.before_request
 def authenticate_quiz_request():
+    if request.method == "OPTIONS":
+        return "", 200
+
     if not configuration_is_valid():
         return error_response(
             "Authentication service is not configured.", 503
