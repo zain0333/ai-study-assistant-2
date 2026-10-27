@@ -438,8 +438,10 @@ def submit_quiz_attempt(quiz_id):
 
         if not saved.ok:
             current_app.logger.error(
-                "Saving quiz attempt failed: HTTP %s",
-                saved.status_code,
+    "Saving quiz attempt failed: HTTP %s; response: %s",
+    saved.status_code,
+    saved.text[:1000],
+
             )
             return quiz_error(
                 "Could not save your quiz result.",
