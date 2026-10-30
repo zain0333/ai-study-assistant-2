@@ -1,4 +1,3 @@
-
 import os
 import time
 import logging
@@ -72,6 +71,10 @@ AWS_REGION = os.getenv(
 ).strip()
 
 S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "").strip()
+
+S3_LEGACY_OWNER_USER_ID = os.getenv(
+    "S3_LEGACY_OWNER_USER_ID", ""
+).strip()
 
 # boto3 reads AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
 # from the environment automatically.
@@ -302,6 +305,7 @@ def get_study_material_directory():
 
     return STUDY_MATERIAL_DIR
 
+
 def read_local_document(document_name):
     name, error = validate_document_name(document_name)
 
@@ -331,8 +335,8 @@ def read_local_document(document_name):
 
 def read_study_document(document_name):
     """
-    Read from S3 when configured; otherwise use local study_material.
-    The S3 object key is the document's relative name.
+    Read the logged-in user's private S3 document.
+    The original owner can also read existing root-level legacy documents.
     """
     name, error = validate_document_name(document_name)
 
@@ -342,39 +346,54 @@ def read_study_document(document_name):
     if not s3_is_configured():
         return read_local_document(name)
 
-    try:
-        result = s3_client.get_object(
-            Bucket=S3_BUCKET_NAME,
-            Key=name,
-        )
+    user = getattr(g, "current_user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
 
-        body = result["Body"]
+    if not user_id:
+        return None, "Could not verify document ownership."
 
+    user_prefix = f"users/{user_id}/"
+    keys_to_try = [f"{user_prefix}{name}"]
+
+    # Keep old root-level documents available only to their original owner.
+    if user_id == S3_LEGACY_OWNER_USER_ID:
+        keys_to_try.append(name)
+
+    for object_key in keys_to_try:
         try:
-            # Read no more than the configured limit plus one byte.
-            raw_content = body.read(MAX_DOCUMENT_LENGTH + 1)
-        finally:
-            body.close()
+            result = s3_client.get_object(
+                Bucket=S3_BUCKET_NAME,
+                Key=object_key,
+            )
 
-        content = raw_content.decode("utf-8")
-        return content[:MAX_DOCUMENT_LENGTH], None
+            body = result["Body"]
 
-    except ClientError as error:
-        code = error.response.get("Error", {}).get("Code", "")
+            try:
+                raw_content = body.read(MAX_DOCUMENT_LENGTH + 1)
+            finally:
+                body.close()
 
-        if code in ("NoSuchKey", "404", "NotFound"):
-            return None, "Selected document was not found."
+            content = raw_content.decode("utf-8")
+            return content[:MAX_DOCUMENT_LENGTH], None
 
-        if code in ("AccessDenied", "403"):
-            logger.warning("S3 denied access to a study document.")
-            return None, "The document storage service denied access."
+        except ClientError as error:
+            code = error.response.get("Error", {}).get("Code", "")
 
-        logger.warning("S3 document read failed.")
-        return None, "Could not read the selected document."
+            if code in ("NoSuchKey", "404", "NotFound"):
+                continue
 
-    except (BotoCoreError, OSError, UnicodeError, KeyError, ValueError):
-        logger.warning("Could not process an S3 study document.")
-        return None, "Could not read the selected document."
+            if code in ("AccessDenied", "403"):
+                logger.warning("S3 denied access to a study document.")
+                return None, "The document storage service denied access."
+
+            logger.warning("S3 document read failed.")
+            return None, "Could not read the selected document."
+
+        except (BotoCoreError, OSError, UnicodeError, KeyError, ValueError):
+            logger.warning("Could not process an S3 study document.")
+            return None, "Could not read the selected document."
+
+    return None, "Selected document was not found."
 
 
 def list_local_documents():
@@ -408,25 +427,54 @@ def list_s3_documents():
     if not s3_is_configured():
         return list_local_documents()
 
-    names = []
+    user = getattr(g, "current_user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
+
+    if not user_id:
+        return []
+
+    user_prefix = f"users/{user_id}/"
+    names = set()
 
     try:
         paginator = s3_client.get_paginator("list_objects_v2")
 
-        for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+        # List only documents stored in this user's private folder.
+        for page in paginator.paginate(
+            Bucket=S3_BUCKET_NAME,
+            Prefix=user_prefix,
+        ):
             for item in page.get("Contents", []):
                 key = item.get("Key", "")
+                name = key[len(user_prefix):]
 
-                if not key.lower().endswith(".txt"):
+                if not name.lower().endswith(".txt"):
                     continue
 
-                # Exclude unsafe keys from the list.
-                valid_name, error = validate_document_name(key)
+                valid_name, error = validate_document_name(name)
 
-                if not error and valid_name == key:
-                    names.append(key)
+                if not error and valid_name == name:
+                    names.add(name)
 
-        return sorted(set(names))
+        # Keep existing root-level documents visible only to their owner.
+        if user_id == S3_LEGACY_OWNER_USER_ID:
+            for page in paginator.paginate(Bucket=S3_BUCKET_NAME):
+                for item in page.get("Contents", []):
+                    key = item.get("Key", "")
+
+                    # Never treat another user's private folder as legacy data.
+                    if key.startswith("users/"):
+                        continue
+
+                    if not key.lower().endswith(".txt"):
+                        continue
+
+                    valid_name, error = validate_document_name(key)
+
+                    if not error and valid_name == key:
+                        names.add(key)
+
+        return sorted(names)
 
     except (ClientError, BotoCoreError):
         logger.warning("Could not list S3 study documents.")
@@ -665,9 +713,17 @@ def upload_document():
         ):
             return error_response("Invalid subject folder name.")
 
-        object_key = f"{subject}/{filename}"
+        document_name = f"{subject}/{filename}"
     else:
-        object_key = filename
+        document_name = filename
+
+    user = getattr(g, "current_user", None)
+    user_id = user.get("id") if isinstance(user, dict) else None
+
+    if not user_id:
+        return error_response("Could not verify document ownership.", 401)
+
+    object_key = f"users/{user_id}/{document_name}"
 
     try:
         # Enforce a size limit while reading the incoming upload.
@@ -688,7 +744,7 @@ def upload_document():
 
         return jsonify({
             "message": "Document uploaded successfully.",
-            "document": {"name": object_key},
+            "document": {"name": document_name},
         }), 201
 
     except UnicodeDecodeError:
@@ -986,7 +1042,6 @@ def not_found(_error):
 @app.errorhandler(405)
 def method_not_allowed(_error):
     return error_response("Method not allowed.", 405)
-
 
 
 @app.errorhandler(Exception)

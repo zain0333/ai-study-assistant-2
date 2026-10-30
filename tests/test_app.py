@@ -1,4 +1,4 @@
-﻿
+
 import backend.app as app_module
 
 
@@ -133,3 +133,108 @@ def test_quiz_routes_require_authentication():
         )
 
 
+from botocore.exceptions import ClientError
+
+
+def test_s3_listing_only_shows_current_users_documents(monkeypatch):
+    """A user should see only documents in their private S3 folder."""
+
+    class FakePaginator:
+        def paginate(self, **kwargs):
+            assert kwargs["Prefix"] == "users/user-a/"
+            yield {
+                "Contents": [
+                    {"Key": "users/user-a/biology.txt"},
+
+                ]
+            }
+
+    class FakeS3:
+        def get_paginator(self, name):
+            return FakePaginator()
+
+    monkeypatch.setattr(app_module, "s3_is_configured", lambda: True)
+    monkeypatch.setattr(app_module, "s3_client", FakeS3())
+    monkeypatch.setattr(app_module, "S3_BUCKET_NAME", "test-bucket")
+
+    with app_module.app.test_request_context():
+        app_module.g.current_user = {"id": "user-a"}
+
+        documents = app_module.list_s3_documents()
+
+    assert documents == ["biology.txt"]
+
+
+def test_s3_legacy_documents_are_only_visible_to_legacy_owner(monkeypatch):
+    """Only the configured owner should see root-level legacy documents."""
+
+    class FakePaginator:
+        def paginate(self, **kwargs):
+            if "Prefix" in kwargs:
+                yield {
+                    "Contents": [
+                        {"Key": "users/user-a/biology.txt"}
+                    ]
+                }
+            else:
+                yield {
+                    "Contents": [
+                        {"Key": "legacy.txt"},
+                        {"Key": "users/user-b/private.txt"},
+                    ]
+                }
+
+    class FakeS3:
+        def get_paginator(self, name):
+            return FakePaginator()
+
+    monkeypatch.setattr(app_module, "s3_is_configured", lambda: True)
+    monkeypatch.setattr(app_module, "s3_client", FakeS3())
+    monkeypatch.setattr(app_module, "S3_BUCKET_NAME", "test-bucket")
+    monkeypatch.setattr(
+        app_module, "S3_LEGACY_OWNER_USER_ID", "user-a"
+    )
+
+    with app_module.app.test_request_context():
+        app_module.g.current_user = {"id": "user-a"}
+
+        documents = app_module.list_s3_documents()
+
+    assert documents == ["biology.txt", "legacy.txt"]
+    assert "private.txt" not in documents
+
+
+def test_user_cannot_read_another_users_s3_document(monkeypatch):
+    """A user's read request must use their own private S3 key."""
+
+    requested_keys = []
+
+    class FakeS3:
+        def get_object(self, **kwargs):
+            requested_keys.append(kwargs["Key"])
+
+            raise ClientError(
+                {
+                    "Error": {
+                        "Code": "NoSuchKey",
+                        "Message": "Object not found",
+                    }
+                },
+                "GetObject",
+            )
+
+    monkeypatch.setattr(app_module, "s3_is_configured", lambda: True)
+    monkeypatch.setattr(app_module, "s3_client", FakeS3())
+    monkeypatch.setattr(app_module, "S3_BUCKET_NAME", "test-bucket")
+    monkeypatch.setattr(
+        app_module, "S3_LEGACY_OWNER_USER_ID", "user-a"
+    )
+
+    with app_module.app.test_request_context():
+        app_module.g.current_user = {"id": "user-b"}
+
+        content, error = app_module.read_study_document("private.txt")
+
+    assert content is None
+    assert error
+    assert requested_keys == ["users/user-b/private.txt"]
