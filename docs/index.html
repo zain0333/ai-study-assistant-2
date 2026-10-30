@@ -486,7 +486,12 @@
                     <div id="quizReview"></div>
                 </section>
             </section>
-
+                <section id="quizAttemptHistory" style="margin-top:20px">
+                    <h3>Quiz Attempt History</h3>
+                    <button id="refreshQuizAttemptsButton" type="button" class="secondary">Refresh Quiz Attempts</button>
+                    <div id="quizAttemptsMessage" class="message" role="status" aria-live="polite"></div>
+                    <div id="quizAttemptsList"></div>
+                </section>
                 <h2>Question History</h2>
                 <p id="historyDescription" class="muted">
                     Your saved questions and answers will appear here.
@@ -1209,6 +1214,65 @@
                 }
             }
         });
+        async function loadQuizAttempts() {
+            setBusy("refreshQuizAttemptsButton", true, "Refreshing...");
+            showMessage("quizAttemptsMessage", "Loading quiz attempts...");
+
+            try {
+                const data = await apiRequest("/quiz-attempts");
+                const attempts = Array.isArray(data.attempts) ? data.attempts : [];
+                const list = $("quizAttemptsList");
+                list.replaceChildren();
+
+                if (!attempts.length) {
+                    showMessage("quizAttemptsMessage", "No quiz attempts saved yet.", "success");
+                    return;
+                }
+
+                const quizzesData = await apiRequest("/quizzes");
+                const quizzes = Array.isArray(quizzesData.quizzes) ? quizzesData.quizzes : [];
+                const quizTitles = new Map(
+                    quizzes.map((quiz) => [String(quiz.id), quiz.title || "Saved quiz"])
+                );
+
+                attempts.forEach((attempt) => {
+                    const card = document.createElement("article");
+                    card.className = "history-item";
+
+                    const title = document.createElement("h4");
+                    title.textContent = quizTitles.get(String(attempt.quiz_id)) || "Saved quiz";
+
+                    const score = document.createElement("p");
+                    const total = Number(attempt.total_questions) || 0;
+                    const points = Number(attempt.score) || 0;
+                    const percentage = total > 0
+                        ? Math.round((points / total) * 100)
+                        : 0;
+                    score.textContent = `Score: ${points} / ${total} (${percentage}%)`;
+
+                    card.append(title, score);
+
+                    if (attempt.created_at) {
+                        const date = document.createElement("p");
+                        date.className = "history-meta";
+                        const parsedDate = new Date(attempt.created_at);
+                        date.textContent = Number.isNaN(parsedDate.getTime())
+                            ? String(attempt.created_at)
+                            : parsedDate.toLocaleString();
+                        card.appendChild(date);
+                    }
+
+                    list.appendChild(card);
+                });
+
+                showMessage("quizAttemptsMessage", "Quiz attempts loaded successfully.", "success");
+            } catch (error) {
+                showMessage("quizAttemptsMessage", error.message, "error");
+                $("quizAttemptsList").replaceChildren();
+            } finally {
+                setBusy("refreshQuizAttemptsButton", false);
+            }
+        }
         async function loadHistory() {
             setBusy("refreshHistoryButton", true, "Refreshing...");
             showMessage("historyMessage", "Loading saved history...");
@@ -1356,6 +1420,7 @@
         }
 
         $("refreshHistoryButton").addEventListener("click", loadHistory);
+        refreshQuizAttemptsButton.addEventListener("click", loadQuizAttempts);
 
         $("logoutButton").addEventListener("click", () => {
             showLoggedOut();
@@ -1395,6 +1460,7 @@
                 await loadDocuments();
                 await loadHistory();
                 await loadSavedQuizzes();
+                await loadQuizAttempts();
             } catch (error) {
                 if (!accessToken) {
                     return;

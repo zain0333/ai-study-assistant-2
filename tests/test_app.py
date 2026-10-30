@@ -1,4 +1,4 @@
-
+﻿
 import backend.app as app_module
 
 
@@ -112,3 +112,24 @@ def test_read_study_document_missing_file(tmp_path, monkeypatch):
 
     assert content is None
     assert error
+def test_quiz_routes_require_authentication():
+    """Quiz routes must reject requests without login."""
+    client = app_module.app.test_client()
+
+    requests = [
+        ("GET", "/quiz-attempts"),
+        ("POST", "/quizzes/generate"),
+        ("GET", "/quizzes"),
+        ("GET", "/quizzes/test-quiz-id"),
+        ("POST", "/quizzes/test-quiz-id/attempt"),
+    ]
+
+    for method, path in requests:
+        response = client.open(path, method=method)
+
+        assert response.status_code in (401, 503), (
+            f"{method} {path} should require authentication, "
+            f"but returned {response.status_code}"
+        )
+
+

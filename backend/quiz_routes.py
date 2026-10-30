@@ -63,6 +63,34 @@ def public_questions(questions):
     return result
 
 
+@quiz_bp.route("/quiz-attempts", methods=["GET"])
+def list_quiz_attempts():
+    try:
+        response = quiz_db_request(
+            "GET",
+            "quiz_attempts",
+            params={
+                "select": "id,quiz_id,score,total_questions,submitted_answers,created_at",
+                "user_id": f"eq.{g.current_user['id']}",
+                "order": "created_at.desc",
+                "limit": "50",
+            },
+        )
+
+        if not response.ok:
+            current_app.logger.error(
+                "Loading quiz attempts failed: HTTP %s; response: %s",
+                response.status_code,
+                response.text[:500],
+            )
+            return quiz_error("Could not load quiz-attempt history.", 502)
+
+        return jsonify({"attempts": response.json()}), 200
+
+    except (requests.RequestException, ValueError, TypeError):
+        current_app.logger.exception("Could not load quiz-attempt history")
+        return quiz_error("Could not load quiz-attempt history.", 502)
+
 @quiz_bp.route("/quizzes/generate", methods=["POST"])
 def generate_quiz():
     data = request.get_json(silent=True)
