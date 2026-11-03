@@ -8,3 +8,10 @@ node_modules/
 # Backup files
 *.backup
 *_backup.py
+# Additional temporary project backups and test files
+*.before-*
+*.quiz-backup
+*.quiz-*-backup
+*-diff-review.txt
+lambda-deployment.zip
+private-upload-check.txt

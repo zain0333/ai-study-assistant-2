@@ -91,6 +91,7 @@ def list_quiz_attempts():
         current_app.logger.exception("Could not load quiz-attempt history")
         return quiz_error("Could not load quiz-attempt history.", 502)
 
+
 @quiz_bp.route("/quizzes/generate", methods=["POST"])
 def generate_quiz():
     data = request.get_json(silent=True)
@@ -457,13 +458,13 @@ def submit_quiz_attempt(quiz_id):
             json={
                 "quiz_id": quiz_id,
                 "user_id": g.current_user["id"],
-           "submitted_answers": [
-                   {
-                      "question_id": question_id,
-                      "selected_answer": selected_answer,
-                   }
-               for question_id, selected_answer in answers.items()
-           ],
+                "submitted_answers": [
+                    {
+                        "question_id": question_id,
+                        "selected_answer": selected_answer,
+                    }
+                    for question_id, selected_answer in answers.items()
+                ],
                 "score": score,
                 "total_questions": len(questions),
             },
@@ -472,10 +473,9 @@ def submit_quiz_attempt(quiz_id):
 
         if not saved.ok:
             current_app.logger.error(
-    "Saving quiz attempt failed: HTTP %s; response: %s",
-    saved.status_code,
-    saved.text[:1000],
-
+                "Saving quiz attempt failed: HTTP %s; response: %s",
+                saved.status_code,
+                saved.text[:1000],
             )
             return quiz_error(
                 "Could not save your quiz result.",
